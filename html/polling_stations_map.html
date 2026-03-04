@@ -154,23 +154,42 @@
       transition: background 0.15s, border-color 0.15s;
     }
     #suggest-location-btn:hover { background: #45475a; border-color: #89b4fa; }
+
+    /* ── script toggle ───────────────────────────────────────────────────── */
+    #script-toggle {
+      display: flex; border: 1px solid #45475a; border-radius: 10px;
+      overflow: hidden; flex-shrink: 0;
+    }
+    .script-opt {
+      padding: 2px 8px; font-size: 11px; font-weight: 700; cursor: pointer;
+      background: transparent; border: none; color: #6c7086; line-height: 1.5;
+    }
+    .script-opt:hover { color: #cdd6f4; }
+    .script-opt.active { background: #cba6f7; color: #1e1e2e; }
   </style>
 </head>
 <body>
 
 <div id="sidebar">
   <div id="sidebar-header">
-    <h1>Бирачка места 2026</h1>
-    <div class="stat-row">
-      <span class="stat-chip chip-total" id="stat-total">Укупно: …</span>
-      <span class="stat-chip chip-mapped" id="stat-mapped">На мапи: …</span>
-      <span class="stat-chip chip-miss" id="stat-miss">Без коорд: …</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <h1 data-i18n="Бирачка места 2026">Бирачка места 2026</h1>
+      <div id="script-toggle" title="Промени писмо / Promeni pismo">
+        <button class="script-opt active" data-script="cyr">Ћир</button>
+        <button class="script-opt"        data-script="lat">Lat</button>
+      </div>
     </div>
-    <button id="toggle-btn">🌡 Прикажи хит-мапу</button>
-    <button id="suggest-location-btn">+ Предложи локацију</button>
+    <div class="stat-row">
+      <span class="stat-chip chip-total" id="stat-total">…</span>
+      <span class="stat-chip chip-mapped" id="stat-mapped">…</span>
+      <span class="stat-chip chip-miss" id="stat-miss">…</span>
+    </div>
+    <button id="toggle-btn">🌡 <span data-i18n="Прикажи хит-мапу">Прикажи хит-мапу</span></button>
+    <button id="suggest-location-btn">+ <span data-i18n="Предложи локацију">Предложи локацију</span></button>
   </div>
   <div id="search-wrap">
-    <input id="search" type="text" placeholder="Претражи по општини или бирачком месту…" autocomplete="off">
+    <input id="search" type="text" data-i18n-ph="Претражи по општини или бирачком месту…"
+           placeholder="Претражи по општини или бирачком месту…" autocomplete="off">
   </div>
   <div id="community-list"></div>
 </div>
@@ -186,7 +205,7 @@
     <!-- success state (hidden until after submit) -->
     <div id="modal-success">
       <div class="success-icon">✅</div>
-      <p>Хвала! Ваш предлог је примљен и биће прегледан.</p>
+      <p data-i18n="Хвала! Ваш предлог је примљен и биће прегледан.">Хвала! Ваш предлог је примљен и биће прегледан.</p>
     </div>
 
     <!-- form state -->
@@ -206,44 +225,50 @@
 
         <!-- Station picker — shown only when opened from sidebar button -->
         <div id="station-picker-section" style="display:none">
-          <label>Претражи бирачко место без координате <span style="color:#f38ba8">*</span></label>
-          <input type="text" id="station-search-input" placeholder="нпр. Основна школа, Нови Сад…" autocomplete="off">
+          <label><span data-i18n="Претражи бирачко место без координате">Претражи бирачко место без координате</span> <span style="color:#f38ba8">*</span></label>
+          <input type="text" id="station-search-input"
+                 data-i18n-ph="нпр. Основна школа, Нови Сад…"
+                 placeholder="нпр. Основна школа, Нови Сад…" autocomplete="off">
           <div id="station-search-results"></div>
-          <p id="station-picker-hint">⬆ Прво изаберите бирачко место из листе.</p>
+          <p id="station-picker-hint" data-i18n="⬆ Прво изаберите бирачко место из листе.">⬆ Прво изаберите бирачко место из листе.</p>
         </div>
 
         <!-- Station display — shown when station is known -->
         <div id="station-display-section">
-          <label>Бирачко место</label>
+          <label data-i18n="Бирачко место">Бирачко место</label>
           <input type="text" id="display-station-name" readonly style="opacity:0.6;cursor:default;">
-          <label>Општина</label>
+          <label data-i18n="Општина">Општина</label>
           <input type="text" id="display-community-name" readonly style="opacity:0.6;cursor:default;">
         </div>
 
         <!-- Map picker — hidden until station is selected (in "new" mode) or always shown (in "correct" mode) -->
         <div id="picker-section">
-          <label>Кликните на мапи да поставите пин на тачну локацију</label>
+          <label data-i18n="Кликните на мапи да поставите пин на тачну локацију">Кликните на мапи да поставите пин на тачну локацију</label>
           <div id="picker-map"></div>
-          <p id="picker-hint">📌 Координате: <span id="picker-coords">нису изабране</span></p>
+          <p id="picker-hint">📌 <span data-i18n="Координате:">Координате:</span> <span id="picker-coords" data-i18n-val="нису изабране" data-i18n-val-lat="nisu izabrane">нису изабране</span></p>
         </div>
 
         <div class="check-row">
           <input type="checkbox" name="is-approx" id="field-is-approx" value="yes">
-          <label for="field-is-approx" style="margin:0;">Локација је приближна</label>
+          <label for="field-is-approx" style="margin:0;" data-i18n="Локација је приближна">Локација је приближна</label>
         </div>
 
-        <label for="field-comment">Коментар (опционално)</label>
-        <textarea name="comment" id="field-comment" placeholder="нпр. зграда је на углу улице…"></textarea>
+        <label for="field-comment" data-i18n="Коментар (опционално)">Коментар (опционално)</label>
+        <textarea name="comment" id="field-comment"
+                  data-i18n-ph="нпр. зграда је на углу улице…"
+                  placeholder="нпр. зграда је на углу улице…"></textarea>
 
-        <label for="field-submitter-name">Ваше ime <span style="color:#f38ba8">*</span></label>
-        <input type="text" name="submitter-name" id="field-submitter-name" required placeholder="Ime i prezime">
+        <label for="field-submitter-name"><span data-i18n="Ваше имe">Ваше имe</span> <span style="color:#f38ba8">*</span></label>
+        <input type="text" name="submitter-name" id="field-submitter-name" required
+               data-i18n-ph="Ime i prezime" placeholder="Ime i prezime">
 
-        <label for="field-submitter-contact">Контакт (e-mail или телефон) <span style="color:#f38ba8">*</span></label>
-        <input type="text" name="submitter-contact" id="field-submitter-contact" required placeholder="email@primer.rs или +381…">
+        <label for="field-submitter-contact"><span data-i18n="Контакт (e-mail или телефон)">Контакт (e-mail или телефон)</span> <span style="color:#f38ba8">*</span></label>
+        <input type="text" name="submitter-contact" id="field-submitter-contact" required
+               placeholder="email@primer.rs или +381…">
 
         <div class="modal-actions">
-          <button type="button" id="modal-cancel-btn">Откажи</button>
-          <button type="submit" id="modal-submit-btn">Пошаљи предлог</button>
+          <button type="button" id="modal-cancel-btn" data-i18n="Откажи">Откажи</button>
+          <button type="submit" id="modal-submit-btn" data-i18n="Пошаљи предлог">Пошаљи предлог</button>
         </div>
       </form>
     </div>
@@ -253,6 +278,33 @@
 <script src="polling_stations_data.js"></script>
 
 <script>
+// ── Serbian Cyrillic → Latin transliteration ──────────────────────────────────
+// Digraphs must come before their component letters.
+const CYR_LAT = [
+  ['Љ','Lj'],['Њ','Nj'],['Џ','Dž'],
+  ['љ','lj'],['њ','nj'],['џ','dž'],
+  ['А','A'],['Б','B'],['В','V'],['Г','G'],['Д','D'],['Ђ','Đ'],
+  ['Е','E'],['Ж','Ž'],['З','Z'],['И','I'],['Ј','J'],['К','K'],
+  ['Л','L'],['М','M'],['Н','N'],['О','O'],['П','P'],['Р','R'],
+  ['С','S'],['Т','T'],['Ћ','Ć'],['У','U'],['Ф','F'],['Х','H'],
+  ['Ц','C'],['Ч','Č'],['Ш','Š'],
+  ['а','a'],['б','b'],['в','v'],['г','g'],['д','d'],['ђ','đ'],
+  ['е','e'],['ж','ž'],['з','z'],['и','i'],['ј','j'],['к','k'],
+  ['л','l'],['м','m'],['н','n'],['о','o'],['п','p'],['р','r'],
+  ['с','s'],['т','t'],['ћ','ć'],['у','u'],['ф','f'],['х','h'],
+  ['ц','c'],['ч','č'],['ш','š'],
+];
+function cyrToLat(str) {
+  if (!str) return str;
+  let r = str;
+  for (const [c, l] of CYR_LAT) r = r.split(c).join(l);
+  return r;
+}
+
+let currentScript = localStorage.getItem('srScript') || 'cyr';
+// t() — transliterate a Cyrillic string if Latin mode is active
+function t(cyrStr) { return currentScript === 'lat' ? cyrToLat(cyrStr) : cyrStr; }
+
 // ── build flat index ──────────────────────────────────────────────────────────
 const allStations = [];
 for (const comm of DATA.communities) {
@@ -263,9 +315,12 @@ for (const comm of DATA.communities) {
 const mapped   = allStations.filter(s => s.geo);
 const unmapped = allStations.filter(s => !s.geo);
 
-document.getElementById('stat-total').textContent  = `Укупно: ${allStations.length}`;
-document.getElementById('stat-mapped').textContent = `На мапи: ${mapped.length}`;
-document.getElementById('stat-miss').textContent   = `Без коорд: ${unmapped.length}`;
+function updateStatChips() {
+  document.getElementById('stat-total').textContent  = `${t('Укупно')}: ${allStations.length}`;
+  document.getElementById('stat-mapped').textContent = `${t('На мапи')}: ${mapped.length}`;
+  document.getElementById('stat-miss').textContent   = `${t('Без коорд')}: ${unmapped.length}`;
+}
+updateStatChips();
 
 // ── voter count scale for pin sizing/color ────────────────────────────────────
 // Use p5→p95 percentile range so mid-range stations spread across the full
@@ -309,9 +364,11 @@ function buildCommunityList(filter) {
   commList.innerHTML = '';
   const q = (filter || '').toLowerCase().trim();
   for (const comm of DATA.communities) {
-    const nameMatch = comm.name.toLowerCase().includes(q);
+    // match against whichever script is currently active
+    const commDisp  = t(comm.name);
+    const nameMatch = commDisp.toLowerCase().includes(q);
     const stations  = comm.polling_stations.filter(s =>
-      !q || nameMatch || s.name.toLowerCase().includes(q)
+      !q || nameMatch || t(s.name).toLowerCase().includes(q)
     );
     if (q && stations.length === 0) continue;
 
@@ -319,8 +376,8 @@ function buildCommunityList(filter) {
     const div = document.createElement('div');
     div.className = 'comm-item';
     div.dataset.communityId = comm.id;
-    div.innerHTML = `<div class="comm-name">${comm.name}</div>
-      <div class="comm-sub">${stations.length} места · ${mappedCount} на мапи</div>`;
+    div.innerHTML = `<div class="comm-name">${commDisp}</div>
+      <div class="comm-sub">${stations.length} ${t('места')} · ${mappedCount} ${t('на мапи')}</div>`;
     div.addEventListener('click', () => flyToCommunit(comm.id));
     commList.appendChild(div);
   }
@@ -357,24 +414,24 @@ function initMap() {
     marker._voterCount = st.voter_count ?? 0;
     marker.addListener('gmp-click', () => {
       const numberRow = st.number != null
-        ? `<span style="color:#888;font-size:12px;">Бирачко место бр. <b>${st.number}</b> · </span>`
+        ? `<span style="color:#888;font-size:12px;">${t('Бирачко место бр.')} <b>${st.number}</b> · </span>`
         : '';
       const voterRow = st.voter_count != null
-        ? `<span style="color:#888;font-size:12px;">Бирача: <b>${st.voter_count.toLocaleString('sr-RS')}</b></span>`
+        ? `<span style="color:#888;font-size:12px;">${t('Бирача')}: <b>${st.voter_count.toLocaleString('sr-RS')}</b></span>`
         : '';
       const approxRow = st.geo_approx
-        ? `<br><span style="color:#b45309;font-size:11px;">⚠ Приближна локација</span>`
+        ? `<br><span style="color:#b45309;font-size:11px;">⚠ ${t('Приближна локација')}</span>`
         : '';
       const sourceRow = st.geo_source
-        ? `<br><span style="color:#888;font-size:11px;">Извор координата: ${st.geo_source}</span>`
+        ? `<br><span style="color:#888;font-size:11px;">${t('Извор координата')}: ${st.geo_source}</span>`
         : '';
       const stIdx = i; // capture for closure
       infoWindow.setContent(`
         <div style="max-width:260px;font-family:sans-serif;">
-          <b style="font-size:13px;">${st.name}</b><br>
-          <span style="color:#888;font-size:12px;">${st.communityName}</span><br>
+          <b style="font-size:13px;">${t(st.name)}</b><br>
+          <span style="color:#888;font-size:12px;">${t(st.communityName)}</span><br>
           ${numberRow}${voterRow}${approxRow}${sourceRow}
-          <br><a href="#" id="iw-suggest-${stIdx}" style="font-size:11px;color:#1a73e8;text-decoration:none;">📍 Предложи исправку</a>
+          <br><a href="#" id="iw-suggest-${stIdx}" style="font-size:11px;color:#1a73e8;text-decoration:none;">📍 ${t('Предложи исправку')}</a>
         </div>`);
       // attach click after infoWindow renders
       google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
@@ -450,11 +507,17 @@ function toggleView() {
   if (isHeatmap) {
     clusterer.clearMarkers();
     heatmap.setMap(map);
-    btn.textContent = '📍 Прикажи маркере';
+    const span = btn.querySelector('[data-i18n]');
+    span.setAttribute('data-i18n', 'Прикажи маркере');
+    span.textContent = t('Прикажи маркере');
+    btn.childNodes[0].textContent = '📍 ';
     btn.classList.add('heatmap-active');
   } else {
     heatmap.setMap(null);
-    btn.textContent = '🌡 Прикажи хит-мапу';
+    const span = btn.querySelector('[data-i18n]');
+    span.setAttribute('data-i18n', 'Прикажи хит-мапу');
+    span.textContent = t('Прикажи хит-мапу');
+    btn.childNodes[0].textContent = '🌡 ';
     btn.classList.remove('heatmap-active');
     // re-apply current filter to restore markers
     applyFilter(document.getElementById('search').value);
@@ -475,8 +538,8 @@ function applyFilter(q) {
   if (!clusterer) return;
 
   const matchFn = st => !q
-    || st.name.toLowerCase().includes(q)
-    || st.communityName.toLowerCase().includes(q);
+    || t(st.name).toLowerCase().includes(q)
+    || t(st.communityName).toLowerCase().includes(q);
 
   if (isHeatmap) {
     const points = mapped
@@ -532,17 +595,17 @@ function flyToCommunit(communityId) {
     stResultsList.innerHTML = '';
     if (!q) return;
     const matches = unmapped.filter(s =>
-      s.name.toLowerCase().includes(q) || s.communityName.toLowerCase().includes(q)
+      t(s.name).toLowerCase().includes(q) || t(s.communityName).toLowerCase().includes(q)
     ).slice(0, 40);
     matches.forEach(st => {
       const item = document.createElement('div');
       item.className = 'station-result-item';
-      item.innerHTML = `<div class="sri-name">${st.name}</div><div class="sri-comm">${st.communityName}</div>`;
+      item.innerHTML = `<div class="sri-name">${t(st.name)}</div><div class="sri-comm">${t(st.communityName)}</div>`;
       item.addEventListener('click', () => selectUnmappedStation(st));
       stResultsList.appendChild(item);
     });
     if (matches.length === 0) {
-      stResultsList.innerHTML = '<div class="station-result-item" style="color:#6c7086;cursor:default;">Нема резултата.</div>';
+      stResultsList.innerHTML = `<div class="station-result-item" style="color:#6c7086;cursor:default;">${t('Нема резултата.')}</div>`;
     }
   }
 
@@ -685,6 +748,50 @@ function flyToCommunit(communityId) {
 
   // expose globally for marker click handlers
   window.openCorrectionModal = (st) => openModal(st, 'correct');
+
+  // ── script toggle (Ћир / Lat) ──────────────────────────────────────────────
+  function applyScript(script) {
+    currentScript = script;
+    localStorage.setItem('srScript', script);
+
+    // update toggle button states
+    document.querySelectorAll('.script-opt').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.script === script);
+    });
+
+    // update data-i18n text nodes
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      el.textContent = t(el.getAttribute('data-i18n'));
+    });
+
+    // update data-i18n-ph placeholders
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+      el.placeholder = t(el.getAttribute('data-i18n-ph'));
+    });
+
+    // update picker-coords default text (only if coords not yet chosen)
+    const coordsEl = document.getElementById('picker-coords');
+    if (coordsEl && coordsEl.dataset.i18nVal) {
+      const noCoords = t(coordsEl.getAttribute('data-i18n-val'));
+      // only reset if it still shows the default (not real coordinates)
+      if (!/\d/.test(coordsEl.textContent)) coordsEl.textContent = noCoords;
+    }
+
+    // update lang attribute for accessibility
+    document.documentElement.lang = script === 'lat' ? 'sr-Latn' : 'sr';
+
+    // rebuild dynamic content
+    updateStatChips();
+    buildCommunityList(document.getElementById('search').value);
+    if (typeof infoWindow !== 'undefined' && infoWindow) infoWindow.close();
+  }
+
+  // init toggle state on load
+  applyScript(currentScript);
+
+  document.querySelectorAll('.script-opt').forEach(btn => {
+    btn.addEventListener('click', () => applyScript(btn.dataset.script));
+  });
 
   // sidebar button — user picks both station and location
   document.getElementById('suggest-location-btn').addEventListener('click', () => {
