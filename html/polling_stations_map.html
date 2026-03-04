@@ -556,7 +556,7 @@ buildCommunityList('');
 
 // ── Google Maps init ──────────────────────────────────────────────────────────
 let map, clusterer, infoWindow, heatmap, heatmapTurnout, heatmapRed, heatmapYellow, heatmapGreen;
-// heatmapMode: 0 = markers, 1 = voter-count heatmap, 2 = turnout heatmap, 3 = results heatmap, 4 = results markers
+// heatmapMode: 0 = results markers, 1 = voter markers, 2 = voter-count heatmap, 3 = turnout heatmap, 4 = results heatmap
 let heatmapMode = 0;
 let activeQuery = '';                        // current search filter
 const markerCache = new Array(mapped.length).fill(null); // sparse — only viewport markers exist
@@ -654,7 +654,7 @@ function createMarker(st, i, contentEl = null) {
 // Add/remove markers based on current viewport + active filter.
 // Called on every map 'idle' event and whenever the filter changes.
 function refreshMarkers() {
-  if (!map || heatmapMode !== 0) return;
+  if (!map || heatmapMode !== 1) return;
   const bounds = map.getBounds();
   if (!bounds) return;
 
@@ -686,7 +686,7 @@ function refreshMarkers() {
 
 // Mode 4: individual result-colored markers, bypasses clusterer.
 function refreshResultMarkers() {
-  if (!map || heatmapMode !== 4) return;
+  if (!map || heatmapMode !== 0) return;
   const bounds = map.getBounds();
   if (!bounds) return;
 
@@ -852,7 +852,7 @@ function initMap() {
     heatmapYellow.set('radius', rResults);
     heatmapGreen.set('radius', rResults);
     // mode 4: update existing result pin sizes in place
-    if (heatmapMode === 4) {
+    if (heatmapMode === 0) {
       const size = resultPinSize();
       resultMarkerCache.forEach(m => {
         if (m) { m.content.style.width = m.content.style.height = `${size}px`; }
@@ -871,6 +871,8 @@ function initMap() {
     modeSelect.querySelector('[value="4"]').disabled = true;
   }
   modeSelect.addEventListener('change', () => setMapMode(parseInt(modeSelect.value, 10)));
+  // Initialise to whichever option is selected in the HTML
+  setMapMode(parseInt(modeSelect.value, 10));
 }
 
 window.initMap = initMap;
@@ -881,7 +883,7 @@ function setMapMode(mode) {
   const sel = document.getElementById('map-mode-select');
   sel.value = String(mode);
   sel.classList.remove('mode-voters', 'mode-turnout', 'mode-results');
-  document.getElementById('party-picker').style.display = (mode === 3 || mode === 4) ? 'block' : 'none';
+  document.getElementById('party-picker').style.display = (mode === 0 || mode === 4) ? 'block' : 'none';
 
   // Clear all layers and markers
   heatmap.setMap(null);
@@ -891,29 +893,29 @@ function setMapMode(mode) {
   heatmapGreen.setMap(null);
   resultMarkerCache.forEach((m, i) => { if (m) { m.map = null; resultMarkerCache[i] = null; } });
 
-  if (mode === 1) {
+  if (mode === 0) {
+    buildPartyPicker();
+    markerCache.fill(null);
+    clusterer.clearMarkers();
+    refreshResultMarkers();
+    sel.classList.add('mode-results');
+  } else if (mode === 2) {
     markerCache.fill(null);
     clusterer.clearMarkers();
     heatmap.setMap(map);
     sel.classList.add('mode-voters');
-  } else if (mode === 2) {
+  } else if (mode === 3) {
     markerCache.fill(null);
     clusterer.clearMarkers();
     heatmapTurnout.setMap(map);
     sel.classList.add('mode-turnout');
-  } else if (mode === 3) {
+  } else if (mode === 4) {
     buildPartyPicker();
     markerCache.fill(null);
     clusterer.clearMarkers();
     heatmapRed.setMap(map);
     heatmapYellow.setMap(map);
     heatmapGreen.setMap(map);
-    sel.classList.add('mode-results');
-  } else if (mode === 4) {
-    buildPartyPicker();
-    markerCache.fill(null);
-    clusterer.clearMarkers();
-    refreshResultMarkers();
     sel.classList.add('mode-results');
   } else {
     applyFilter(document.getElementById('search').value);
@@ -934,25 +936,25 @@ function applyFilter(q) {
 
   if (!clusterer) return;
 
-  if (heatmapMode === 1) {
+  if (heatmapMode === 0) {
+    resultMarkerCache.forEach((m, i) => { if (m) { m.map = null; resultMarkerCache[i] = null; } });
+    refreshResultMarkers();
+  } else if (heatmapMode === 2) {
     const points = mapped
       .filter(s => s.voter_count != null && (!q
         || t(s.name).toLowerCase().includes(q)
         || t(s.communityName).toLowerCase().includes(q)))
       .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voter_count }));
     heatmap.setData(points);
-  } else if (heatmapMode === 2) {
+  } else if (heatmapMode === 3) {
     const points = mapped
       .filter(s => s.voting?.turnout_pct != null && (!q
         || t(s.name).toLowerCase().includes(q)
         || t(s.communityName).toLowerCase().includes(q)))
       .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voting.turnout_pct }));
     heatmapTurnout.setData(points);
-  } else if (heatmapMode === 3) {
-    rebuildResultHeatmaps();
   } else if (heatmapMode === 4) {
-    resultMarkerCache.forEach((m, i) => { if (m) { m.map = null; resultMarkerCache[i] = null; } });
-    refreshResultMarkers();
+    rebuildResultHeatmaps();
   } else {
     // Drop all cached markers so refreshMarkers() rebuilds only matches in viewport
     markerCache.fill(null);
