@@ -46,6 +46,35 @@
     #map-mode-select.mode-voters   { border-color: #f9e2af; color: #f9e2af; background-color: #f9e2af22; }
     #map-mode-select.mode-turnout  { border-color: #89b4fa; color: #89b4fa; background-color: #89b4fa22; }
     #map-mode-select.mode-results  { border-color: #a6e3a1; color: #a6e3a1; background-color: #a6e3a122; }
+    #party-picker {
+      display: none;
+      background: #12121c;
+      border-top: 1px solid #313244;
+      padding: 8px 12px 10px;
+    }
+    #party-picker-header {
+      font-size: 11px; color: #6c7086; margin-bottom: 6px; line-height: 1.4;
+    }
+    #party-list {
+      max-height: 190px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .party-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 3px 4px; border-radius: 4px; cursor: pointer;
+      transition: background 0.1s;
+    }
+    .party-row:hover { background: #1e1e2e; }
+    .party-row input[type=checkbox] { flex-shrink: 0; accent-color: #cba6f7; cursor: pointer; }
+    .party-pct {
+      flex-shrink: 0; font-size: 10px; font-weight: 700;
+      background: #313244; color: #cdd6f4;
+      padding: 1px 5px; border-radius: 8px; min-width: 38px; text-align: center;
+    }
+    .party-name {
+      font-size: 11px; color: #cdd6f4;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     #map-mode-select option { background: #313244; color: #cdd6f4; }
     #search-wrap { padding: 10px 12px; background: #181825; border-bottom: 1px solid #313244; }
     #search {
@@ -226,8 +255,16 @@
       <option value="0" data-i18n="📍 Маркери" selected>📍 Маркери</option>
       <option value="1" data-i18n="🌡 Топлотна мапа: број бирача">🌡 Топлотна мапа: број бирача</option>
       <option value="2" data-i18n="📊 Топлотна мапа: излазност">📊 Топлотна мапа: излазност</option>
-      <option value="3" data-i18n="🗳 Победник по бирачком месту">🗳 Победник по бирачком месту</option>
+      <option value="3" data-i18n="🗳 Топлотна мапа: однос странака">🗳 Топлотна мапа: однос странака</option>
     </select>
+    <div id="party-picker">
+      <div id="party-picker-header">
+        🔴 <span data-i18n="Означене листе = власт">Означене листе = власт</span>
+        &nbsp;·&nbsp;
+        🟢 <span data-i18n="Остале = опозиција">Остале = опозиција</span>
+      </div>
+      <div id="party-list"></div>
+    </div>
     <button id="suggest-location-btn">+ <span data-i18n="Предложи локацију">Предложи локацију</span></button>
   </div>
   <div id="search-wrap">
@@ -364,16 +401,79 @@ const totalVoted      = votingStations.reduce((s, x) => s + (x.voting.voted     
 const totalRegistered = votingStations.reduce((s, x) => s + (x.voting.registered || 0), 0);
 const overallTurnout  = totalRegistered > 0 ? (totalVoted / totalRegistered * 100).toFixed(1) : null;
 
-// Incumbent coalition — party names as stored in results (number prefix already stripped by merge script)
+// ── Party picker for results heatmap ──────────────────────────────────────────
+// Default coalition (number prefix already stripped by merge script)
 const INCUMBENT_PARTIES = new Set([
   'IZBORNA LISTA ALEKSANDAR VUČIĆ - SRBIJA NE SME DA STANE',
   'IZBORNA LISTA IVICA DAČIĆ – PREMIJER SRBIJE',
 ]);
+
+// All parties ranked by national total votes (computed once)
+const _partyVotes = {};
+for (const s of votingStations) {
+  for (const r of (s.voting.results || [])) {
+    _partyVotes[r.party] = (_partyVotes[r.party] || 0) + r.votes;
+  }
+}
+const _totalAllVotes = Object.values(_partyVotes).reduce((a, b) => a + b, 0);
+const allPartiesRanked = Object.entries(_partyVotes)
+  .sort((a, b) => b[1] - a[1])
+  .map(([party, votes]) => ({
+    party,
+    pct: _totalAllVotes > 0 ? (votes / _totalAllVotes * 100).toFixed(1) : '0.0',
+  }));
+
+let _pickerBuilt = false;
+function buildPartyPicker() {
+  if (_pickerBuilt) return;
+  _pickerBuilt = true;
+  const list = document.getElementById('party-list');
+  for (const { party, pct } of allPartiesRanked) {
+    const label = document.createElement('label');
+    label.className = 'party-row';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = party;
+    cb.checked = INCUMBENT_PARTIES.has(party);
+    cb.addEventListener('change', () => {
+      if (cb.checked) INCUMBENT_PARTIES.add(party);
+      else INCUMBENT_PARTIES.delete(party);
+      rebuildResultHeatmaps();
+    });
+
+    const pctSpan = document.createElement('span');
+    pctSpan.className = 'party-pct';
+    pctSpan.textContent = pct + '%';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'party-name';
+    nameSpan.title = party;
+    nameSpan.textContent = party.length > 34 ? party.slice(0, 32) + '…' : party;
+
+    label.append(cb, pctSpan, nameSpan);
+    list.appendChild(label);
+  }
+}
+
 // Returns the combined vote % of the incumbent coalition at a station (0–100)
 function incPctFor(s) {
   return (s.voting.results || [])
     .filter(r => INCUMBENT_PARTIES.has(r.party))
     .reduce((sum, r) => sum + r.pct, 0);
+}
+
+function rebuildResultHeatmaps() {
+  const q = activeQuery;
+  const base = mapped.filter(s => s.voting?.results?.length && (!q
+    || t(s.name).toLowerCase().includes(q)
+    || t(s.communityName).toLowerCase().includes(q)));
+  heatmapIncumbent.setData(base
+    .filter(s => incPctFor(s) > 50)
+    .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: incPctFor(s) })));
+  heatmapOpposition.setData(base
+    .filter(s => incPctFor(s) <= 50)
+    .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: 100 - incPctFor(s) })));
 }
 
 function updateStatChips() {
@@ -700,6 +800,7 @@ function setMapMode(mode) {
   const sel = document.getElementById('map-mode-select');
   sel.value = String(mode);
   sel.classList.remove('mode-voters', 'mode-turnout', 'mode-results');
+  document.getElementById('party-picker').style.display = mode === 3 ? '' : 'none';
 
   heatmap.setMap(null);
   heatmapTurnout.setMap(null);
@@ -717,6 +818,7 @@ function setMapMode(mode) {
     heatmapTurnout.setMap(map);
     sel.classList.add('mode-turnout');
   } else if (mode === 3) {
+    buildPartyPicker();
     markerCache.fill(null);
     clusterer.clearMarkers();
     heatmapIncumbent.setMap(map);
@@ -756,15 +858,7 @@ function applyFilter(q) {
       .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voting.turnout_pct }));
     heatmapTurnout.setData(points);
   } else if (heatmapMode === 3) {
-    const base = mapped.filter(s => s.voting?.results?.length && (!q
-      || t(s.name).toLowerCase().includes(q)
-      || t(s.communityName).toLowerCase().includes(q)));
-    heatmapIncumbent.setData(base
-      .filter(s => incPctFor(s) > 50)
-      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: incPctFor(s) })));
-    heatmapOpposition.setData(base
-      .filter(s => incPctFor(s) <= 50)
-      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: 100 - incPctFor(s) })));
+    rebuildResultHeatmaps();
   } else {
     // Drop all cached markers so refreshMarkers() rebuilds only matches in viewport
     markerCache.fill(null);
