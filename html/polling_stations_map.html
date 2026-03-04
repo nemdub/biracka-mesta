@@ -252,7 +252,8 @@
       <span class="stat-chip chip-turnout" id="stat-turnout" style="display:none;">…</span>
     </div>
     <select id="map-mode-select">
-      <option value="0" data-i18n="📍 Маркери" selected>📍 Маркери</option>
+      <option value="4" data-i18n="🚥 Маркери: однос странака" selected>🚥 Маркери: однос странака</option>
+      <option value="0" data-i18n="📍 Маркери: број бирача">📍 Маркери: број бирача</option>
       <option value="1" data-i18n="🌡 Топлотна мапа: број бирача">🌡 Топлотна мапа: број бирача</option>
       <option value="2" data-i18n="📊 Топлотна мапа: излазност">📊 Топлотна мапа: излазност</option>
       <option value="3" data-i18n="🗳 Топлотна мапа: однос странака">🗳 Топлотна мапа: однос странака</option>
@@ -555,17 +556,33 @@ buildCommunityList('');
 
 // ── Google Maps init ──────────────────────────────────────────────────────────
 let map, clusterer, infoWindow, heatmap, heatmapTurnout, heatmapRed, heatmapYellow, heatmapGreen;
-// heatmapMode: 0 = markers, 1 = voter-count heatmap, 2 = turnout heatmap, 3 = results (incumbent vs opposition)
+// heatmapMode: 0 = markers, 1 = voter-count heatmap, 2 = turnout heatmap, 3 = results heatmap, 4 = results markers
 let heatmapMode = 0;
 let activeQuery = '';                        // current search filter
 const markerCache = new Array(mapped.length).fill(null); // sparse — only viewport markers exist
+const resultMarkerCache = new Array(mapped.length).fill(null); // mode 4 result-colored markers
+
+function resultPinSize() {
+  return Math.min(22, Math.round(7 * Math.pow(1.35, Math.max(0, map.getZoom() - 10))));
+}
+
+function makeResultPin(st, size) {
+  const p = incPctFor(st);
+  const bg = p > 55 ? '#dc2626' : p < 45 ? '#16a34a' : '#eab308';
+  const div = document.createElement('div');
+  div.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;background:${bg};` +
+    `border:1.5px solid rgba(255,255,255,0.85);cursor:pointer;` +
+    `opacity:${st.geo_approx ? 0.6 : 0.92};box-sizing:border-box;`;
+  return div;
+}
 
 // Create a single marker for mapped[i] and attach its click handler.
-function createMarker(st, i) {
+// Pass a custom contentEl to override the default voter-count pin.
+function createMarker(st, i, contentEl = null) {
   const marker = new google.maps.marker.AdvancedMarkerElement({
     position: { lat: st.geo.lat, lng: st.geo.lon },
     title: st.name,
-    content: makeMarkerPin(st.voter_count, st.geo_approx),
+    content: contentEl ?? makeMarkerPin(st.voter_count, st.geo_approx),
   });
   marker._voterCount = st.voter_count ?? 0;
   marker.addListener('gmp-click', () => {
@@ -667,6 +684,41 @@ function refreshMarkers() {
   if (toRemove.length || toAdd.length) clusterer.render();
 }
 
+// Mode 4: individual result-colored markers, bypasses clusterer.
+function refreshResultMarkers() {
+  if (!map || heatmapMode !== 4) return;
+  const bounds = map.getBounds();
+  if (!bounds) return;
+
+  const ne = bounds.getNorthEast(), sw = bounds.getSouthWest();
+  const latPad = (ne.lat() - sw.lat()) * 0.5;
+  const lngPad = (ne.lng() - sw.lng()) * 0.5;
+  const q = activeQuery;
+  const size = resultPinSize();
+
+  mapped.forEach((st, i) => {
+    if (!st.voting?.results?.length) return;
+    const inView = st.geo.lat >= sw.lat() - latPad && st.geo.lat <= ne.lat() + latPad
+                && st.geo.lon >= sw.lng() - lngPad && st.geo.lon <= ne.lng() + lngPad;
+    const matches = !q
+      || t(st.name).toLowerCase().includes(q)
+      || t(st.communityName).toLowerCase().includes(q);
+
+    if (inView && matches) {
+      if (!resultMarkerCache[i]) {
+        const m = createMarker(st, i, makeResultPin(st, size));
+        m.map = map;
+        resultMarkerCache[i] = m;
+      }
+    } else {
+      if (resultMarkerCache[i]) {
+        resultMarkerCache[i].map = null;
+        resultMarkerCache[i] = null;
+      }
+    }
+  });
+}
+
 function initMap() {
   function viewFromHash() {
     const parts = location.hash.replace('#', '').split('/');
@@ -743,6 +795,7 @@ function initMap() {
     localStorage.setItem('mapView', JSON.stringify(view));
     history.replaceState(null, '', `#${view.zoom}/${view.lat.toFixed(5)}/${view.lng.toFixed(5)}`);
     refreshMarkers();
+    refreshResultMarkers();
   });
 
   // ── heatmap layers ─────────────────────────────────────────────────────────
@@ -798,6 +851,13 @@ function initMap() {
     heatmapRed.set('radius', rResults);
     heatmapYellow.set('radius', rResults);
     heatmapGreen.set('radius', rResults);
+    // mode 4: update existing result pin sizes in place
+    if (heatmapMode === 4) {
+      const size = resultPinSize();
+      resultMarkerCache.forEach(m => {
+        if (m) { m.content.style.width = m.content.style.height = `${size}px`; }
+      });
+    }
   }
   map.addListener('zoom_changed', updateHeatmapRadius);
   updateHeatmapRadius();
@@ -808,6 +868,7 @@ function initMap() {
   if (!votingStations.length) {
     modeSelect.querySelector('[value="2"]').disabled = true;
     modeSelect.querySelector('[value="3"]').disabled = true;
+    modeSelect.querySelector('[value="4"]').disabled = true;
   }
   modeSelect.addEventListener('change', () => setMapMode(parseInt(modeSelect.value, 10)));
 }
@@ -820,13 +881,15 @@ function setMapMode(mode) {
   const sel = document.getElementById('map-mode-select');
   sel.value = String(mode);
   sel.classList.remove('mode-voters', 'mode-turnout', 'mode-results');
-  document.getElementById('party-picker').style.display = mode === 3 ? 'block' : 'none';
+  document.getElementById('party-picker').style.display = (mode === 3 || mode === 4) ? 'block' : 'none';
 
+  // Clear all layers and markers
   heatmap.setMap(null);
   heatmapTurnout.setMap(null);
   heatmapRed.setMap(null);
   heatmapYellow.setMap(null);
   heatmapGreen.setMap(null);
+  resultMarkerCache.forEach((m, i) => { if (m) { m.map = null; resultMarkerCache[i] = null; } });
 
   if (mode === 1) {
     markerCache.fill(null);
@@ -845,6 +908,12 @@ function setMapMode(mode) {
     heatmapRed.setMap(map);
     heatmapYellow.setMap(map);
     heatmapGreen.setMap(map);
+    sel.classList.add('mode-results');
+  } else if (mode === 4) {
+    buildPartyPicker();
+    markerCache.fill(null);
+    clusterer.clearMarkers();
+    refreshResultMarkers();
     sel.classList.add('mode-results');
   } else {
     applyFilter(document.getElementById('search').value);
@@ -881,6 +950,9 @@ function applyFilter(q) {
     heatmapTurnout.setData(points);
   } else if (heatmapMode === 3) {
     rebuildResultHeatmaps();
+  } else if (heatmapMode === 4) {
+    resultMarkerCache.forEach((m, i) => { if (m) { m.map = null; resultMarkerCache[i] = null; } });
+    refreshResultMarkers();
   } else {
     // Drop all cached markers so refreshMarkers() rebuilds only matches in viewport
     markerCache.fill(null);
