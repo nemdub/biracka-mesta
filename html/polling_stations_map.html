@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Бирачка места — Избори 2026</title>
+  <title>Бирачка места</title>
   <script src="https://cdn.jsdelivr.net/npm/@googlemaps/markerclusterer@2/dist/index.umd.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -92,6 +92,7 @@
         transition: transform 0.25s ease;
         resize: none;
       }
+      #sidebar-header { padding-top: 58px; }
       #sidebar.open { transform: translateX(0); }
       #sidebar-backdrop.open { display: block; }
     }
@@ -199,7 +200,7 @@
 <div id="sidebar">
   <div id="sidebar-header">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-      <h1 data-i18n="Бирачка места 2026">Бирачка места 2026</h1>
+      <h1 data-i18n="Бирачка места">Бирачка места</h1>
       <div id="script-toggle" title="Промени писмо / Promeni pismo">
         <button class="script-opt active" data-script="cyr">Ћир</button>
         <button class="script-opt"        data-script="lat">Lat</button>
