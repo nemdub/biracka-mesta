@@ -463,13 +463,16 @@ function incPctFor(s) {
     .reduce((sum, r) => sum + r.pct, 0);
 }
 
+// close race: incumbent coalition within 45–55 %; clear win: outside that band
 function rebuildResultHeatmaps() {
   const q = activeQuery;
   const base = mapped.filter(s => s.voting?.results?.length && (!q
     || t(s.name).toLowerCase().includes(q)
     || t(s.communityName).toLowerCase().includes(q)));
-  heatmapResults.setData(base
-    .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: incPctFor(s) })));
+  const pt = s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: 1 });
+  heatmapRed.setData(base.filter(s => incPctFor(s) > 55).map(pt));
+  heatmapYellow.setData(base.filter(s => { const p = incPctFor(s); return p >= 45 && p <= 55; }).map(pt));
+  heatmapGreen.setData(base.filter(s => incPctFor(s) < 45).map(pt));
 }
 
 function updateStatChips() {
@@ -549,7 +552,7 @@ function buildCommunityList(filter) {
 buildCommunityList('');
 
 // ── Google Maps init ──────────────────────────────────────────────────────────
-let map, clusterer, infoWindow, heatmap, heatmapTurnout, heatmapResults;
+let map, clusterer, infoWindow, heatmap, heatmapTurnout, heatmapRed, heatmapYellow, heatmapGreen;
 // heatmapMode: 0 = markers, 1 = voter-count heatmap, 2 = turnout heatmap, 3 = results (incumbent vs opposition)
 let heatmapMode = 0;
 let activeQuery = '';                        // current search filter
@@ -763,17 +766,23 @@ function initMap() {
     opacity: 0.75,
   });
 
-  // ── results heatmap: green (opposition) → yellow (close) → red (incumbent) ──
-  heatmapResults = new google.maps.visualization.HeatmapLayer({
-    data: mapped.filter(s => s.voting?.results?.length)
-      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: incPctFor(s) })),
-    map: null, radius: 28, opacity: 0.9,
-    gradient: [
-      'rgba(22,163,74,0)',
-      'rgba(22,163,74,1)',
-      'rgba(234,179,8,1)',
-      'rgba(220,38,38,1)',
-    ],
+  // ── results heatmap: three layers — red (incumbent >55%), yellow (45–55%), green (<45%) ──
+  const _pt = s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: 1 });
+  const _wr = mapped.filter(s => s.voting?.results?.length);
+  heatmapRed = new google.maps.visualization.HeatmapLayer({
+    data: _wr.filter(s => incPctFor(s) > 55).map(_pt),
+    map: null, radius: 28, opacity: 0.85,
+    gradient: ['rgba(220,38,38,0)', 'rgba(220,38,38,0.6)', 'rgba(220,38,38,1)'],
+  });
+  heatmapYellow = new google.maps.visualization.HeatmapLayer({
+    data: _wr.filter(s => { const p = incPctFor(s); return p >= 45 && p <= 55; }).map(_pt),
+    map: null, radius: 28, opacity: 0.85,
+    gradient: ['rgba(234,179,8,0)', 'rgba(234,179,8,0.6)', 'rgba(234,179,8,1)'],
+  });
+  heatmapGreen = new google.maps.visualization.HeatmapLayer({
+    data: _wr.filter(s => incPctFor(s) < 45).map(_pt),
+    map: null, radius: 28, opacity: 0.85,
+    gradient: ['rgba(22,163,74,0)', 'rgba(22,163,74,0.6)', 'rgba(22,163,74,1)'],
   });
 
   // ── zoom-dependent heatmap radius ──────────────────────────────────────────
@@ -784,7 +793,9 @@ function initMap() {
     const rResults = Math.round(r * 1.1);
     heatmap.set('radius', r);
     heatmapTurnout.set('radius', r);
-    heatmapResults.set('radius', rResults);
+    heatmapRed.set('radius', rResults);
+    heatmapYellow.set('radius', rResults);
+    heatmapGreen.set('radius', rResults);
   }
   map.addListener('zoom_changed', updateHeatmapRadius);
   updateHeatmapRadius();
@@ -811,7 +822,9 @@ function setMapMode(mode) {
 
   heatmap.setMap(null);
   heatmapTurnout.setMap(null);
-  heatmapResults.setMap(null);
+  heatmapRed.setMap(null);
+  heatmapYellow.setMap(null);
+  heatmapGreen.setMap(null);
 
   if (mode === 1) {
     markerCache.fill(null);
@@ -827,7 +840,9 @@ function setMapMode(mode) {
     buildPartyPicker();
     markerCache.fill(null);
     clusterer.clearMarkers();
-    heatmapResults.setMap(map);
+    heatmapRed.setMap(map);
+    heatmapYellow.setMap(map);
+    heatmapGreen.setMap(map);
     sel.classList.add('mode-results');
   } else {
     applyFilter(document.getElementById('search').value);
