@@ -523,7 +523,8 @@ function initMap() {
     fullscreenControlOptions: { position: google.maps.ControlPosition.TOP_RIGHT },
   });
 
-  infoWindow = new google.maps.InfoWindow();
+  infoWindow = new google.maps.InfoWindow({ zIndex: 9999 });
+  map.addListener('click', () => infoWindow.close());
 
   // ── cluster renderer — color/size reflect aggregated voter count ───────────
   const clusterRenderer = {
