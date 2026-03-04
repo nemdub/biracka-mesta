@@ -782,6 +782,20 @@ function initMap() {
     gradient: ['rgba(22,163,74,0)', 'rgba(22,163,74,0.4)', 'rgba(22,163,74,1)'],
   });
 
+  // ── zoom-dependent heatmap radius ──────────────────────────────────────────
+  function updateHeatmapRadius() {
+    const zoom = map.getZoom();
+    // At zoom 10 → radius 25; each extra zoom level doubles it; cap at 150
+    const r = Math.min(150, Math.round(25 * Math.pow(2, Math.max(0, zoom - 10))));
+    const rResults = Math.round(r * 1.1);
+    heatmap.set('radius', r);
+    heatmapTurnout.set('radius', r);
+    heatmapIncumbent.set('radius', rResults);
+    heatmapOpposition.set('radius', rResults);
+  }
+  map.addListener('zoom_changed', updateHeatmapRadius);
+  updateHeatmapRadius();
+
   // ── map mode dropdown ──────────────────────────────────────────────────────
   const modeSelect = document.getElementById('map-mode-select');
   // Disable options if data is unavailable
