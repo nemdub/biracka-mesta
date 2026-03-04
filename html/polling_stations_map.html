@@ -214,7 +214,7 @@
       <span class="stat-chip chip-miss" id="stat-miss">…</span>
       <span class="stat-chip chip-turnout" id="stat-turnout" style="display:none;">…</span>
     </div>
-    <button id="toggle-btn">🌡 <span data-i18n="Прикажи хит-мапу">Прикажи хит-мапу</span></button>
+    <button id="toggle-btn">🌡 <span data-i18n="Топлотна мапа бирачких места">Топлотна мапа бирачких места</span></button>
     <button id="suggest-location-btn">+ <span data-i18n="Предложи локацију">Предложи локацију</span></button>
   </div>
   <div id="search-wrap">
@@ -667,8 +667,8 @@ function toggleView() {
     markerCache.fill(null);
     clusterer.clearMarkers();
     heatmap.setMap(map);
-    span.setAttribute('data-i18n', 'Хит-мапа: излазност');
-    span.textContent = t('Хит-мапа: излазност');
+    span.setAttribute('data-i18n', 'Топлотна мапа: излазност');
+    span.textContent = t('Топлотна мапа: излазност');
     btn.childNodes[0].textContent = '🌡 ';
     btn.classList.add('heatmap-active');
   } else if (heatmapMode === 2) {
@@ -678,8 +678,8 @@ function toggleView() {
     btn.childNodes[0].textContent = '📊 ';
     btn.classList.add('heatmap-turnout-active');
   } else {
-    span.setAttribute('data-i18n', 'Прикажи хит-мапу');
-    span.textContent = t('Прикажи хит-мапу');
+    span.setAttribute('data-i18n', 'Топлотна мапа: бирачка места');
+    span.textContent = t('Топлотна мапа: бирачка места');
     btn.childNodes[0].textContent = '🌡 ';
     applyFilter(document.getElementById('search').value);
   }
