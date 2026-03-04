@@ -25,9 +25,10 @@
     .stat-chip {
       padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600;
     }
-    .chip-total  { background: #313244; color: #cdd6f4; }
-    .chip-mapped { background: #a6e3a1; color: #1e1e2e; }
-    .chip-miss   { background: #f38ba8; color: #1e1e2e; }
+    .chip-total   { background: #313244; color: #cdd6f4; }
+    .chip-mapped  { background: #a6e3a1; color: #1e1e2e; }
+    .chip-miss    { background: #f38ba8; color: #1e1e2e; }
+    .chip-turnout { background: #89b4fa; color: #1e1e2e; }
     #toggle-btn {
       margin-top: 10px; width: 100%; padding: 7px 10px;
       border-radius: 8px; border: 1px solid #45475a;
@@ -36,7 +37,8 @@
       transition: background 0.15s, border-color 0.15s;
     }
     #toggle-btn:hover { background: #45475a; border-color: #cba6f7; }
-    #toggle-btn.heatmap-active { background: #f9e2af22; border-color: #f9e2af; color: #f9e2af; }
+    #toggle-btn.heatmap-active         { background: #f9e2af22; border-color: #f9e2af; color: #f9e2af; }
+    #toggle-btn.heatmap-turnout-active { background: #89b4fa22; border-color: #89b4fa; color: #89b4fa; }
     #search-wrap { padding: 10px 12px; background: #181825; border-bottom: 1px solid #313244; }
     #search {
       width: 100%; padding: 7px 10px; border-radius: 8px;
@@ -210,6 +212,7 @@
       <span class="stat-chip chip-total" id="stat-total">…</span>
       <span class="stat-chip chip-mapped" id="stat-mapped">…</span>
       <span class="stat-chip chip-miss" id="stat-miss">…</span>
+      <span class="stat-chip chip-turnout" id="stat-turnout" style="display:none;">…</span>
     </div>
     <button id="toggle-btn">🌡 <span data-i18n="Прикажи хит-мапу">Прикажи хит-мапу</span></button>
     <button id="suggest-location-btn">+ <span data-i18n="Предложи локацију">Предложи локацију</span></button>
@@ -342,10 +345,23 @@ for (const comm of DATA.communities) {
 const mapped   = allStations.filter(s => s.geo);
 const unmapped = allStations.filter(s => !s.geo);
 
+// ── Overall turnout across all stations with voting data ──────────────────────
+const votingStations = allStations.filter(s => s.voting);
+const totalVoted      = votingStations.reduce((s, x) => s + (x.voting.voted      || 0), 0);
+const totalRegistered = votingStations.reduce((s, x) => s + (x.voting.registered || 0), 0);
+const overallTurnout  = totalRegistered > 0 ? (totalVoted / totalRegistered * 100).toFixed(1) : null;
+
 function updateStatChips() {
   document.getElementById('stat-total').textContent  = `${t('Укупно')}: ${allStations.length}`;
   document.getElementById('stat-mapped').textContent = `${t('На мапи')}: ${mapped.length}`;
   document.getElementById('stat-miss').textContent   = `${t('Без коорд')}: ${unmapped.length}`;
+  const turnoutEl = document.getElementById('stat-turnout');
+  if (turnoutEl) {
+    turnoutEl.style.display = overallTurnout ? '' : 'none';
+    if (overallTurnout) {
+      turnoutEl.textContent = `${t('Излазност')}: ${overallTurnout}%`;
+    }
+  }
 }
 updateStatChips();
 
@@ -412,8 +428,9 @@ function buildCommunityList(filter) {
 buildCommunityList('');
 
 // ── Google Maps init ──────────────────────────────────────────────────────────
-let map, clusterer, infoWindow, heatmap;
-let isHeatmap   = false;
+let map, clusterer, infoWindow, heatmap, heatmapTurnout;
+// heatmapMode: 0 = markers, 1 = voter-count heatmap, 2 = turnout heatmap
+let heatmapMode = 0;
 let activeQuery = '';                        // current search filter
 const markerCache = new Array(mapped.length).fill(null); // sparse — only viewport markers exist
 
@@ -438,11 +455,44 @@ function createMarker(st, i) {
     const sourceRow = st.geo_source
       ? `<br><span style="color:#888;font-size:11px;">${t('Извор координата')}: ${st.geo_source}</span>`
       : '';
+
+    let votingRow = '';
+    if (st.voting) {
+      const v = st.voting;
+      const pct = v.turnout_pct != null ? v.turnout_pct.toFixed(1) : '?';
+      const votedFmt = v.voted != null ? v.voted.toLocaleString('sr-RS') : '?';
+      const regFmt = v.registered != null ? v.registered.toLocaleString('sr-RS') : '?';
+      votingRow = `<br><span style="color:#888;font-size:12px;">${t('Излазност')}: <b>${pct}%</b> (${votedFmt} / ${regFmt})</span>`;
+
+      if (v.results && v.results.length > 0) {
+        const top = v.results.slice(0, 10);
+        const maxVotes = top[0].votes || 1;
+        const rows = top.map(r => {
+          const barW = Math.round(r.votes / maxVotes * 100);
+          const name = r.party.length > 40 ? r.party.slice(0, 38) + '…' : r.party;
+          return `<div style="margin-bottom:3px;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;line-height:1.3;">
+              <span style="color:#333;flex:1;margin-right:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="${r.party.replace(/"/g,'&quot;')}">${name}</span>
+              <span style="color:#555;white-space:nowrap;">${r.votes.toLocaleString('sr-RS')} <span style="color:#999;">(${r.pct.toFixed(1)}%)</span></span>
+            </div>
+            <div style="background:#eee;border-radius:2px;height:3px;margin-top:1px;">
+              <div style="background:#4f86c6;height:3px;border-radius:2px;width:${barW}%;"></div>
+            </div>
+          </div>`;
+        }).join('');
+        votingRow += `<div style="margin-top:6px;max-height:160px;overflow-y:auto;border-top:1px solid #eee;padding-top:4px;">
+          <div style="display:flex;justify-content:space-between;color:#aaa;font-size:10px;padding-bottom:2px;margin-bottom:2px;">\
+<span>${t('Листа')}</span><span>${t('Гласова')}</span></div>
+          ${rows}
+        </div>`;
+      }
+    }
+
     infoWindow.setContent(`
-      <div style="max-width:260px;font-family:sans-serif;">
+      <div style="max-width:280px;font-family:sans-serif;">
         <b style="font-size:13px;">${t(st.name)}</b><br>
         <span style="color:#888;font-size:12px;">${t(st.communityName)}</span><br>
-        ${numberRow}${voterRow}${approxRow}${sourceRow}
+        ${numberRow}${voterRow}${approxRow}${sourceRow}${votingRow}
         <br><a href="#" id="iw-suggest-${i}" style="font-size:11px;color:#1a73e8;text-decoration:none;">📍 ${t('Предложи исправку')}</a>
       </div>`);
     google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
@@ -461,7 +511,7 @@ function createMarker(st, i) {
 // Add/remove markers based on current viewport + active filter.
 // Called on every map 'idle' event and whenever the filter changes.
 function refreshMarkers() {
-  if (!map || isHeatmap) return;
+  if (!map || heatmapMode !== 0) return;
   const bounds = map.getBounds();
   if (!bounds) return;
 
@@ -569,13 +619,24 @@ function initMap() {
     refreshMarkers();
   });
 
-  // ── heatmap ────────────────────────────────────────────────────────────────
+  // ── heatmap layers ─────────────────────────────────────────────────────────
   const heatPoints = mapped
     .filter(s => s.voter_count != null)
     .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voter_count }));
 
   heatmap = new google.maps.visualization.HeatmapLayer({
     data: heatPoints,
+    map: null,
+    radius: 25,
+    opacity: 0.75,
+  });
+
+  const heatPointsTurnout = mapped
+    .filter(s => s.voting?.turnout_pct != null)
+    .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voting.turnout_pct }));
+
+  heatmapTurnout = new google.maps.visualization.HeatmapLayer({
+    data: heatPointsTurnout,
     map: null,
     radius: 25,
     opacity: 0.75,
@@ -588,25 +649,38 @@ function initMap() {
 window.initMap = initMap;
 
 function toggleView() {
-  isHeatmap = !isHeatmap;
+  // Cycle: 0 (markers) → 1 (voter-count heatmap) → 2 (turnout heatmap) → 0
+  heatmapMode = (heatmapMode + 1) % 3;
+  // Skip turnout mode if no turnout data is available
+  if (heatmapMode === 2 && !votingStations.length) {
+    heatmapMode = 0;
+  }
+
   const btn = document.getElementById('toggle-btn');
-  if (isHeatmap) {
+  const span = btn.querySelector('[data-i18n]');
+
+  heatmap.setMap(null);
+  heatmapTurnout.setMap(null);
+  btn.classList.remove('heatmap-active', 'heatmap-turnout-active');
+
+  if (heatmapMode === 1) {
     markerCache.fill(null);
     clusterer.clearMarkers();
     heatmap.setMap(map);
-    const span = btn.querySelector('[data-i18n]');
+    span.setAttribute('data-i18n', 'Хит-мапа: излазност');
+    span.textContent = t('Хит-мапа: излазност');
+    btn.childNodes[0].textContent = '🌡 ';
+    btn.classList.add('heatmap-active');
+  } else if (heatmapMode === 2) {
+    heatmapTurnout.setMap(map);
     span.setAttribute('data-i18n', 'Прикажи маркере');
     span.textContent = t('Прикажи маркере');
-    btn.childNodes[0].textContent = '📍 ';
-    btn.classList.add('heatmap-active');
+    btn.childNodes[0].textContent = '📊 ';
+    btn.classList.add('heatmap-turnout-active');
   } else {
-    heatmap.setMap(null);
-    const span = btn.querySelector('[data-i18n]');
     span.setAttribute('data-i18n', 'Прикажи хит-мапу');
     span.textContent = t('Прикажи хит-мапу');
     btn.childNodes[0].textContent = '🌡 ';
-    btn.classList.remove('heatmap-active');
-    // re-apply current filter to restore markers
     applyFilter(document.getElementById('search').value);
   }
 }
@@ -625,13 +699,20 @@ function applyFilter(q) {
 
   if (!clusterer) return;
 
-  if (isHeatmap) {
+  if (heatmapMode === 1) {
     const points = mapped
       .filter(s => s.voter_count != null && (!q
         || t(s.name).toLowerCase().includes(q)
         || t(s.communityName).toLowerCase().includes(q)))
       .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voter_count }));
     heatmap.setData(points);
+  } else if (heatmapMode === 2) {
+    const points = mapped
+      .filter(s => s.voting?.turnout_pct != null && (!q
+        || t(s.name).toLowerCase().includes(q)
+        || t(s.communityName).toLowerCase().includes(q)))
+      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voting.turnout_pct }));
+    heatmapTurnout.setData(points);
   } else {
     // Drop all cached markers so refreshMarkers() rebuilds only matches in viewport
     markerCache.fill(null);
