@@ -281,7 +281,7 @@
 // ── Serbian Cyrillic → Latin transliteration ──────────────────────────────────
 // Digraphs must come before their component letters.
 const CYR_LAT = [
-  ['Љ','Lj'],['Њ','Nj'],['Џ','Dž'],
+  ['Љ','LJ'],['Њ','NJ'],['Џ','DŽ'],
   ['љ','lj'],['њ','nj'],['џ','dž'],
   ['А','A'],['Б','B'],['В','V'],['Г','G'],['Д','D'],['Ђ','Đ'],
   ['Е','E'],['Ж','Ž'],['З','Z'],['И','I'],['Ј','J'],['К','K'],
@@ -614,15 +614,28 @@ function flyToCommunit(communityId) {
     stResultsList.innerHTML = '';
     stSearchInput.value = '';
     stPickerHint.style.display = 'none';
-    // show map picker now that a station is chosen
+    // show station name + community name
+    stDisplaySec.style.display = '';
+    // show picker section BEFORE creating/resizing the map — container must have
+    // non-zero dimensions or the map renders blank
     pickerSection.style.display = '';
-    google.maps.event.trigger(pickerMap, 'resize');
-    pickerMap.setCenter({ lat: 44.0, lng: 21.0 });
-    pickerMap.setZoom(7);
     if (pickerMarker) { pickerMarker.map = null; pickerMarker = null; }
-    document.getElementById('picker-coords').textContent = 'нису изабране';
+    document.getElementById('picker-coords').textContent = t('нису изабране');
     document.getElementById('field-new-lat').value = '';
     document.getElementById('field-new-lon').value = '';
+    if (!pickerMap) {
+      pickerMap = new google.maps.Map(document.getElementById('picker-map'), {
+        center: { lat: 44.0, lng: 21.0 }, zoom: 7,
+        mapId: '54effe4e315972c324bfa3ce',
+        gestureHandling: 'greedy',
+        mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+      });
+      pickerMap.addListener('click', e => placePickerPin(e.latLng));
+    } else {
+      google.maps.event.trigger(pickerMap, 'resize');
+      pickerMap.setCenter({ lat: 44.0, lng: 21.0 });
+      pickerMap.setZoom(7);
+    }
   }
 
   stSearchInput.addEventListener('input', e => renderStationResults(e.target.value));
@@ -674,28 +687,30 @@ function flyToCommunit(communityId) {
     successEl.style.display = 'none';
     overlay.classList.add('open');
 
-    // init or reposition picker map
-    const startPos  = (!newLocationMode && station.geo)
-      ? { lat: station.geo.lat, lng: station.geo.lon }
-      : { lat: 44.0, lng: 21.0 };
-    const startZoom = (!newLocationMode && station.geo) ? 16 : 7;
-
-    if (!pickerMap) {
-      pickerMap = new google.maps.Map(document.getElementById('picker-map'), {
-        center: startPos, zoom: startZoom,
-        mapId: '54effe4e315972c324bfa3ce',
-        gestureHandling: 'greedy',
-        mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
-      });
-      pickerMap.addListener('click', e => placePickerPin(e.latLng));
+    // In 'new' mode the picker section is hidden until a station is chosen —
+    // map init is deferred to selectUnmappedStation() so it gets a visible container.
+    if (!newLocationMode) {
+      const startPos  = station.geo ? { lat: station.geo.lat, lng: station.geo.lon } : { lat: 44.0, lng: 21.0 };
+      const startZoom = station.geo ? 16 : 7;
+      if (!pickerMap) {
+        pickerMap = new google.maps.Map(document.getElementById('picker-map'), {
+          center: startPos, zoom: startZoom,
+          mapId: '54effe4e315972c324bfa3ce',
+          gestureHandling: 'greedy',
+          mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+        });
+        pickerMap.addListener('click', e => placePickerPin(e.latLng));
+      } else {
+        pickerMap.setCenter(startPos);
+        pickerMap.setZoom(startZoom);
+        if (pickerMarker) { pickerMarker.map = null; pickerMarker = null; }
+      }
+      if (station.geo) {
+        placePickerPin(new google.maps.LatLng(station.geo.lat, station.geo.lon));
+      }
     } else {
-      pickerMap.setCenter(startPos);
-      pickerMap.setZoom(startZoom);
+      // clear any leftover marker from a previous session
       if (pickerMarker) { pickerMarker.map = null; pickerMarker = null; }
-    }
-
-    if (!newLocationMode && station.geo) {
-      placePickerPin(new google.maps.LatLng(station.geo.lat, station.geo.lon));
     }
   }
 
