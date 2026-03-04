@@ -800,7 +800,7 @@ function setMapMode(mode) {
   const sel = document.getElementById('map-mode-select');
   sel.value = String(mode);
   sel.classList.remove('mode-voters', 'mode-turnout', 'mode-results');
-  document.getElementById('party-picker').style.display = mode === 3 ? '' : 'none';
+  document.getElementById('party-picker').style.display = mode === 3 ? 'block' : 'none';
 
   heatmap.setMap(null);
   heatmapTurnout.setMap(null);
