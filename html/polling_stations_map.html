@@ -412,9 +412,83 @@ buildCommunityList('');
 
 // ── Google Maps init ──────────────────────────────────────────────────────────
 let map, clusterer, infoWindow, heatmap;
-let allMarkers = [];
-let visibleSet = new Set();
-let isHeatmap  = false;
+let isHeatmap   = false;
+let activeQuery = '';                        // current search filter
+const markerCache = new Array(mapped.length).fill(null); // sparse — only viewport markers exist
+
+// Create a single marker for mapped[i] and attach its click handler.
+function createMarker(st, i) {
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    position: { lat: st.geo.lat, lng: st.geo.lon },
+    title: st.name,
+    content: makeMarkerPin(st.voter_count, st.geo_approx),
+  });
+  marker._voterCount = st.voter_count ?? 0;
+  marker.addListener('gmp-click', () => {
+    const numberRow = st.number != null
+      ? `<span style="color:#888;font-size:12px;">${t('Бирачко место бр.')} <b>${st.number}</b> · </span>`
+      : '';
+    const voterRow = st.voter_count != null
+      ? `<span style="color:#888;font-size:12px;">${t('Бирача')}: <b>${st.voter_count.toLocaleString('sr-RS')}</b></span>`
+      : '';
+    const approxRow = st.geo_approx
+      ? `<br><span style="color:#b45309;font-size:11px;">⚠ ${t('Приближна локација')}</span>`
+      : '';
+    const sourceRow = st.geo_source
+      ? `<br><span style="color:#888;font-size:11px;">${t('Извор координата')}: ${st.geo_source}</span>`
+      : '';
+    infoWindow.setContent(`
+      <div style="max-width:260px;font-family:sans-serif;">
+        <b style="font-size:13px;">${t(st.name)}</b><br>
+        <span style="color:#888;font-size:12px;">${t(st.communityName)}</span><br>
+        ${numberRow}${voterRow}${approxRow}${sourceRow}
+        <br><a href="#" id="iw-suggest-${i}" style="font-size:11px;color:#1a73e8;text-decoration:none;">📍 ${t('Предложи исправку')}</a>
+      </div>`);
+    google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+      const link = document.getElementById(`iw-suggest-${i}`);
+      if (link) link.addEventListener('click', ev => {
+        ev.preventDefault();
+        infoWindow.close();
+        window.openCorrectionModal(st);
+      });
+    });
+    infoWindow.open(map, marker);
+  });
+  return marker;
+}
+
+// Add/remove markers based on current viewport + active filter.
+// Called on every map 'idle' event and whenever the filter changes.
+function refreshMarkers() {
+  if (!map || isHeatmap) return;
+  const bounds = map.getBounds();
+  if (!bounds) return;
+
+  const ne = bounds.getNorthEast(), sw = bounds.getSouthWest();
+  // pad viewport by 50% so markers don't pop in visibly while panning
+  const latPad = (ne.lat() - sw.lat()) * 0.5;
+  const lngPad = (ne.lng() - sw.lng()) * 0.5;
+  const q = activeQuery;
+
+  const toAdd = [], toRemove = [];
+  mapped.forEach((st, i) => {
+    const inView = st.geo.lat >= sw.lat() - latPad && st.geo.lat <= ne.lat() + latPad
+                && st.geo.lon >= sw.lng() - lngPad && st.geo.lon <= ne.lng() + lngPad;
+    const matches = !q
+      || t(st.name).toLowerCase().includes(q)
+      || t(st.communityName).toLowerCase().includes(q);
+
+    if (inView && matches) {
+      if (!markerCache[i]) { markerCache[i] = createMarker(st, i); toAdd.push(markerCache[i]); }
+    } else {
+      if (markerCache[i]) { toRemove.push(markerCache[i]); markerCache[i] = null; }
+    }
+  });
+
+  if (toRemove.length) clusterer.removeMarkers(toRemove, true);
+  if (toAdd.length)    clusterer.addMarkers(toAdd, true);
+  if (toRemove.length || toAdd.length) clusterer.render();
+}
 
 function initMap() {
   map = new google.maps.Map(document.getElementById('map'), {
@@ -428,51 +502,6 @@ function initMap() {
   });
 
   infoWindow = new google.maps.InfoWindow();
-
-  // ── markers ────────────────────────────────────────────────────────────────
-  allMarkers = mapped.map((st, i) => {
-    const marker = new google.maps.marker.AdvancedMarkerElement({
-      position: { lat: st.geo.lat, lng: st.geo.lon },
-      title: st.name,
-      content: makeMarkerPin(st.voter_count, st.geo_approx),
-    });
-    // store voter_count on the marker so the cluster renderer can read it
-    marker._voterCount = st.voter_count ?? 0;
-    marker.addListener('gmp-click', () => {
-      const numberRow = st.number != null
-        ? `<span style="color:#888;font-size:12px;">${t('Бирачко место бр.')} <b>${st.number}</b> · </span>`
-        : '';
-      const voterRow = st.voter_count != null
-        ? `<span style="color:#888;font-size:12px;">${t('Бирача')}: <b>${st.voter_count.toLocaleString('sr-RS')}</b></span>`
-        : '';
-      const approxRow = st.geo_approx
-        ? `<br><span style="color:#b45309;font-size:11px;">⚠ ${t('Приближна локација')}</span>`
-        : '';
-      const sourceRow = st.geo_source
-        ? `<br><span style="color:#888;font-size:11px;">${t('Извор координата')}: ${st.geo_source}</span>`
-        : '';
-      const stIdx = i; // capture for closure
-      infoWindow.setContent(`
-        <div style="max-width:260px;font-family:sans-serif;">
-          <b style="font-size:13px;">${t(st.name)}</b><br>
-          <span style="color:#888;font-size:12px;">${t(st.communityName)}</span><br>
-          ${numberRow}${voterRow}${approxRow}${sourceRow}
-          <br><a href="#" id="iw-suggest-${stIdx}" style="font-size:11px;color:#1a73e8;text-decoration:none;">📍 ${t('Предложи исправку')}</a>
-        </div>`);
-      // attach click after infoWindow renders
-      google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
-        const link = document.getElementById(`iw-suggest-${stIdx}`);
-        if (link) link.addEventListener('click', ev => {
-          ev.preventDefault();
-          infoWindow.close();
-          window.openCorrectionModal(st);
-        });
-      });
-      infoWindow.open(map, marker);
-    });
-    visibleSet.add(i);
-    return marker;
-  });
 
   // ── cluster renderer — color/size reflect aggregated voter count ───────────
   const clusterRenderer = {
@@ -507,7 +536,9 @@ function initMap() {
     }
   };
 
-  clusterer = new markerClusterer.MarkerClusterer({ map, markers: allMarkers, renderer: clusterRenderer });
+  // Clusterer starts empty — refreshMarkers() populates it on each 'idle' event
+  clusterer = new markerClusterer.MarkerClusterer({ map, renderer: clusterRenderer });
+  map.addListener('idle', refreshMarkers);
 
   // ── heatmap ────────────────────────────────────────────────────────────────
   const heatPoints = mapped
@@ -531,6 +562,7 @@ function toggleView() {
   isHeatmap = !isHeatmap;
   const btn = document.getElementById('toggle-btn');
   if (isHeatmap) {
+    markerCache.fill(null);
     clusterer.clearMarkers();
     heatmap.setMap(map);
     const span = btn.querySelector('[data-i18n]');
@@ -559,27 +591,23 @@ document.getElementById('search').addEventListener('input', e => {
 
 function applyFilter(q) {
   q = q.toLowerCase().trim();
+  activeQuery = q;
   buildCommunityList(q);
 
   if (!clusterer) return;
 
-  const matchFn = st => !q
-    || t(st.name).toLowerCase().includes(q)
-    || t(st.communityName).toLowerCase().includes(q);
-
   if (isHeatmap) {
     const points = mapped
-      .filter(s => s.voter_count != null && matchFn(s))
+      .filter(s => s.voter_count != null && (!q
+        || t(s.name).toLowerCase().includes(q)
+        || t(s.communityName).toLowerCase().includes(q)))
       .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voter_count }));
     heatmap.setData(points);
   } else {
-    const toShow = [];
-    visibleSet.clear();
-    mapped.forEach((st, i) => {
-      if (matchFn(st)) { toShow.push(allMarkers[i]); visibleSet.add(i); }
-    });
+    // Drop all cached markers so refreshMarkers() rebuilds only matches in viewport
+    markerCache.fill(null);
     clusterer.clearMarkers();
-    clusterer.addMarkers(toShow);
+    refreshMarkers();
   }
 }
 
