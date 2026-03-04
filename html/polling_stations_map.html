@@ -468,12 +468,8 @@ function rebuildResultHeatmaps() {
   const base = mapped.filter(s => s.voting?.results?.length && (!q
     || t(s.name).toLowerCase().includes(q)
     || t(s.communityName).toLowerCase().includes(q)));
-  heatmapIncumbent.setData(base
-    .filter(s => incPctFor(s) > 50)
+  heatmapResults.setData(base
     .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: incPctFor(s) })));
-  heatmapOpposition.setData(base
-    .filter(s => incPctFor(s) <= 50)
-    .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: 100 - incPctFor(s) })));
 }
 
 function updateStatChips() {
@@ -553,7 +549,7 @@ function buildCommunityList(filter) {
 buildCommunityList('');
 
 // ── Google Maps init ──────────────────────────────────────────────────────────
-let map, clusterer, infoWindow, heatmap, heatmapTurnout, heatmapIncumbent, heatmapOpposition;
+let map, clusterer, infoWindow, heatmap, heatmapTurnout, heatmapResults;
 // heatmapMode: 0 = markers, 1 = voter-count heatmap, 2 = turnout heatmap, 3 = results (incumbent vs opposition)
 let heatmapMode = 0;
 let activeQuery = '';                        // current search filter
@@ -767,19 +763,17 @@ function initMap() {
     opacity: 0.75,
   });
 
-  // ── results heatmap: incumbent coalition % > 50 → red, otherwise → green ────
-  const _withResults = s => s.voting?.results?.length;
-  heatmapIncumbent = new google.maps.visualization.HeatmapLayer({
-    data: mapped.filter(s => _withResults(s) && incPctFor(s) > 50)
+  // ── results heatmap: green (opposition) → yellow (close) → red (incumbent) ──
+  heatmapResults = new google.maps.visualization.HeatmapLayer({
+    data: mapped.filter(s => s.voting?.results?.length)
       .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: incPctFor(s) })),
-    map: null, radius: 28, opacity: 0.85,
-    gradient: ['rgba(220,38,38,0)', 'rgba(220,38,38,0.4)', 'rgba(220,38,38,1)'],
-  });
-  heatmapOpposition = new google.maps.visualization.HeatmapLayer({
-    data: mapped.filter(s => _withResults(s) && incPctFor(s) <= 50)
-      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: 100 - incPctFor(s) })),
-    map: null, radius: 28, opacity: 0.85,
-    gradient: ['rgba(22,163,74,0)', 'rgba(22,163,74,0.4)', 'rgba(22,163,74,1)'],
+    map: null, radius: 28, opacity: 0.9,
+    gradient: [
+      'rgba(0,0,0,0)',
+      'rgba(22,163,74,1)',
+      'rgba(234,179,8,1)',
+      'rgba(220,38,38,1)',
+    ],
   });
 
   // ── zoom-dependent heatmap radius ──────────────────────────────────────────
@@ -790,8 +784,7 @@ function initMap() {
     const rResults = Math.round(r * 1.1);
     heatmap.set('radius', r);
     heatmapTurnout.set('radius', r);
-    heatmapIncumbent.set('radius', rResults);
-    heatmapOpposition.set('radius', rResults);
+    heatmapResults.set('radius', rResults);
   }
   map.addListener('zoom_changed', updateHeatmapRadius);
   updateHeatmapRadius();
@@ -818,8 +811,7 @@ function setMapMode(mode) {
 
   heatmap.setMap(null);
   heatmapTurnout.setMap(null);
-  heatmapIncumbent.setMap(null);
-  heatmapOpposition.setMap(null);
+  heatmapResults.setMap(null);
 
   if (mode === 1) {
     markerCache.fill(null);
@@ -835,8 +827,7 @@ function setMapMode(mode) {
     buildPartyPicker();
     markerCache.fill(null);
     clusterer.clearMarkers();
-    heatmapIncumbent.setMap(map);
-    heatmapOpposition.setMap(map);
+    heatmapResults.setMap(map);
     sel.classList.add('mode-results');
   } else {
     applyFilter(document.getElementById('search').value);
