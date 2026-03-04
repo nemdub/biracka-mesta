@@ -232,7 +232,7 @@ async function loadSubmissions() {
       headers: { 'X-Admin-Token': adminToken }
     });
     if (resp.status === 401) {
-      loginError.style.display = '';
+      loginError.style.display = 'block';
       loginError.textContent   = 'Неважећи токен.';
       loginOverlay.classList.add('open');
       loadMsg.style.display = 'none';
@@ -278,7 +278,7 @@ function selectSubmission(idx) {
 function renderDetail(sub) {
   const d = sub.data;
   document.getElementById('detail-empty').style.display   = 'none';
-  document.getElementById('detail-content').style.display = '';
+  document.getElementById('detail-content').style.display = 'block';
 
   document.getElementById('d-station-name').textContent    = d['station-name']      || '—';
   document.getElementById('d-community-name').textContent  = d['community-name']    || '—';
