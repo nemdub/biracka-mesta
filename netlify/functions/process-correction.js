@@ -86,8 +86,9 @@ exports.handler = async function(event) {
       return { statusCode: 502, body: JSON.stringify({ error: 'GitHub fetch failed: ' + err.message }) };
     }
 
+    let text;
     if (!fileResp.ok) {
-      const text = await fileResp.text();
+      text = await fileResp.text();
       return { statusCode: 502, body: JSON.stringify({ error: `GitHub API error ${fileResp.status}`, detail: text }) };
     }
 
