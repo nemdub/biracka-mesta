@@ -752,7 +752,7 @@ function flyToCommunit(communityId) {
       const resp = await fetch('/', { method: 'POST', body: data });
       if (resp.ok) {
         formWrap.style.display  = 'none';
-        successEl.style.display = '';
+        successEl.style.display = 'block';
       } else {
         alert('Грешка при слању. Покушајте поново.');
       }
