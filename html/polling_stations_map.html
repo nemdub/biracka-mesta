@@ -491,12 +491,33 @@ function refreshMarkers() {
 }
 
 function initMap() {
+  function viewFromHash() {
+    const parts = location.hash.replace('#', '').split('/');
+    if (parts.length === 3) {
+      const zoom = parseInt(parts[0], 10);
+      const lat  = parseFloat(parts[1]);
+      const lng  = parseFloat(parts[2]);
+      if (!isNaN(zoom) && !isNaN(lat) && !isNaN(lng)) return { lat, lng, zoom };
+    }
+    return null;
+  }
+
+  let initView = viewFromHash();
+  if (!initView) {
+    try {
+      const saved = JSON.parse(localStorage.getItem('mapView'));
+      if (saved && saved.lat && saved.lng && saved.zoom) initView = saved;
+    } catch {}
+  }
+  initView = initView || { lat: 44.0, lng: 21.0, zoom: 7 };
+
   map = new google.maps.Map(document.getElementById('map'), {
-    center: { lat: 44.0, lng: 21.0 },
-    zoom: 7,
+    center: { lat: initView.lat, lng: initView.lng },
+    zoom: initView.zoom,
     mapId: '54effe4e315972c324bfa3ce',
     gestureHandling: 'greedy',
     mapTypeControl: true,
+    mapTypeControlOptions: { position: google.maps.ControlPosition.BOTTOM_LEFT },
     streetViewControl: true,
     fullscreenControlOptions: { position: google.maps.ControlPosition.TOP_RIGHT },
   });
@@ -538,7 +559,13 @@ function initMap() {
 
   // Clusterer starts empty — refreshMarkers() populates it on each 'idle' event
   clusterer = new markerClusterer.MarkerClusterer({ map, renderer: clusterRenderer });
-  map.addListener('idle', refreshMarkers);
+  map.addListener('idle', () => {
+    const c = map.getCenter();
+    const view = { lat: c.lat(), lng: c.lng(), zoom: map.getZoom() };
+    localStorage.setItem('mapView', JSON.stringify(view));
+    history.replaceState(null, '', `#${view.zoom}/${view.lat.toFixed(5)}/${view.lng.toFixed(5)}`);
+    refreshMarkers();
+  });
 
   // ── heatmap ────────────────────────────────────────────────────────────────
   const heatPoints = mapped
