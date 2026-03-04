@@ -364,16 +364,17 @@ const totalVoted      = votingStations.reduce((s, x) => s + (x.voting.voted     
 const totalRegistered = votingStations.reduce((s, x) => s + (x.voting.registered || 0), 0);
 const overallTurnout  = totalRegistered > 0 ? (totalVoted / totalRegistered * 100).toFixed(1) : null;
 
-// Dominant party = party with the most aggregate votes across all stations
-const _partyTotals = {};
-for (const s of votingStations) {
-  for (const r of (s.voting.results || [])) {
-    _partyTotals[r.party] = (_partyTotals[r.party] || 0) + r.votes;
-  }
+// Incumbent coalition — party names as stored in results (number prefix already stripped by merge script)
+const INCUMBENT_PARTIES = new Set([
+  'IZBORNA LISTA ALEKSANDAR VUČIĆ - SRBIJA NE SME DA STANE',
+  'IZBORNA LISTA IVICA DAČIĆ – PREMIJER SRBIJE',
+]);
+// Returns the combined vote % of the incumbent coalition at a station (0–100)
+function incPctFor(s) {
+  return (s.voting.results || [])
+    .filter(r => INCUMBENT_PARTIES.has(r.party))
+    .reduce((sum, r) => sum + r.pct, 0);
 }
-const incumbentParty = Object.keys(_partyTotals).length
-  ? Object.entries(_partyTotals).sort((a, b) => b[1] - a[1])[0][0]
-  : null;
 
 function updateStatChips() {
   document.getElementById('stat-total').textContent  = `${t('Укупно')}: ${allStations.length}`;
@@ -666,21 +667,17 @@ function initMap() {
     opacity: 0.75,
   });
 
-  // ── results heatmap (incumbent won = red, opposition won = green) ───────────
-  // Incumbent wins: weight = their vote %; opposition wins: weight = winner's vote %
+  // ── results heatmap: incumbent coalition % > 50 → red, otherwise → green ────
   const _withResults = s => s.voting?.results?.length;
   heatmapIncumbent = new google.maps.visualization.HeatmapLayer({
-    data: mapped.filter(s => _withResults(s) && s.voting.results[0].party === incumbentParty)
-      .map(s => {
-        const r = s.voting.results.find(x => x.party === incumbentParty);
-        return { location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: r ? r.pct : 0 };
-      }),
+    data: mapped.filter(s => _withResults(s) && incPctFor(s) > 50)
+      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: incPctFor(s) })),
     map: null, radius: 28, opacity: 0.85,
     gradient: ['rgba(220,38,38,0)', 'rgba(220,38,38,0.4)', 'rgba(220,38,38,1)'],
   });
   heatmapOpposition = new google.maps.visualization.HeatmapLayer({
-    data: mapped.filter(s => _withResults(s) && s.voting.results[0].party !== incumbentParty)
-      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voting.results[0].pct })),
+    data: mapped.filter(s => _withResults(s) && incPctFor(s) <= 50)
+      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: 100 - incPctFor(s) })),
     map: null, radius: 28, opacity: 0.85,
     gradient: ['rgba(22,163,74,0)', 'rgba(22,163,74,0.4)', 'rgba(22,163,74,1)'],
   });
@@ -763,14 +760,11 @@ function applyFilter(q) {
       || t(s.name).toLowerCase().includes(q)
       || t(s.communityName).toLowerCase().includes(q)));
     heatmapIncumbent.setData(base
-      .filter(s => s.voting.results[0].party === incumbentParty)
-      .map(s => {
-        const r = s.voting.results.find(x => x.party === incumbentParty);
-        return { location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: r ? r.pct : 0 };
-      }));
+      .filter(s => incPctFor(s) > 50)
+      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: incPctFor(s) })));
     heatmapOpposition.setData(base
-      .filter(s => s.voting.results[0].party !== incumbentParty)
-      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voting.results[0].pct })));
+      .filter(s => incPctFor(s) <= 50)
+      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: 100 - incPctFor(s) })));
   } else {
     // Drop all cached markers so refreshMarkers() rebuilds only matches in viewport
     markerCache.fill(null);
