@@ -187,7 +187,8 @@ for csv_file in sorted(OUTPUT.glob("rezultati_*.csv")):
             for row in reader:
                 try:
                     party = row["Stranka/Lista"].strip().strip('"')
-                    party = re.sub(r"^\d+\.\s*", "", party)   # strip leading "1. "
+                    party = re.sub(r"^\d+\.\s*", "", party)          # strip leading "1. "
+                    party = re.sub(r"^IZBORNA LISTA ", "", party)    # strip common prefix
                     votes = parse_int(row["Broj glasova"].strip().strip('"'))
                     pct = float(row["Procenat"].strip().strip('"').replace(",", "."))
                 except (KeyError, ValueError):
