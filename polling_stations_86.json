@@ -516,8 +516,13 @@
           "id": "6598",
           "name": "21. ОСНОВНА ШКОЛА - НОВАЦИ ПОЉАНСКА БР.9",
           "voter_count": 233,
-          "geo": null,
-          "number": 21
+          "geo": {
+            "lat": 43.451203,
+            "lon": 21.054727
+          },
+          "number": 21,
+          "geo_approx": false,
+          "geo_source": "volunteer"
         },
         {
           "id": "3859",
