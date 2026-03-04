@@ -69,39 +69,45 @@ exports.handler = async function(event) {
       return { statusCode: 400, body: JSON.stringify({ error: 'newLat/newLon are not valid numbers' }) };
     }
 
-    // 1. Fetch current file from GitHub
-    const filePath = 'polling_stations_86.json';
+    // 1. Fetch file metadata from Contents API (gives us the sha needed for PUT)
+    // The Contents API returns empty content for files > 1 MB, so we fetch the
+    // actual content separately via the Git Blobs API which handles up to 100 MB.
+    const filePath  = 'polling_stations_86.json';
     const ghFileUrl = `${GITHUB_API}/repos/${repoOwner}/${repoName}/contents/${filePath}`;
+    const ghHeaders = {
+      Authorization: `Bearer ${githubToken}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
 
-    let fileResp;
+    let metaResp;
     try {
-      fileResp = await fetch(ghFileUrl, {
-        headers: {
-          Authorization: `Bearer ${githubToken}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      });
+      metaResp = await fetch(ghFileUrl, { headers: ghHeaders });
     } catch (err) {
       return { statusCode: 502, body: JSON.stringify({ error: 'GitHub fetch failed: ' + err.message }) };
     }
-
-    let text;
-    if (!fileResp.ok) {
-      text = await fileResp.text();
-      return { statusCode: 502, body: JSON.stringify({ error: `GitHub API error ${fileResp.status}`, detail: text }) };
+    if (!metaResp.ok) {
+      const text = await metaResp.text();
+      return { statusCode: 502, body: JSON.stringify({ error: `GitHub API error ${metaResp.status}`, detail: text }) };
     }
+    const metaJson = await metaResp.json();
+    const fileSha  = metaJson.sha; // blob SHA, required for the PUT commit
 
-    const fileJson = await fileResp.json();
-    const fileSha  = fileJson.sha;
+    // 2. Fetch full content via Git Blobs API (no 1 MB size limit)
+    const blobResp = await fetch(`${GITHUB_API}/repos/${repoOwner}/${repoName}/git/blobs/${fileSha}`, { headers: ghHeaders });
+    if (!blobResp.ok) {
+      const text = await blobResp.text();
+      return { statusCode: 502, body: JSON.stringify({ error: `GitHub Blobs API error ${blobResp.status}`, detail: text }) };
+    }
+    const blobJson = await blobResp.json();
 
-    // 2. Decode and parse JSON
+    // 3. Decode and parse JSON
     let jsonData;
     try {
-      const decoded = Buffer.from(fileJson.content, 'base64').toString('utf8');
+      const decoded = Buffer.from(blobJson.content, 'base64').toString('utf8');
       jsonData = JSON.parse(decoded);
     } catch (err) {
-      return { statusCode: 500, body: JSON.stringify({ error: 'Failed to parse JSON from GitHub: ' + err.message + ', text: ' + text}) };
+      return { statusCode: 500, body: JSON.stringify({ error: 'Failed to parse JSON from GitHub: ' + err.message }) };
     }
 
     // 3. Update the station
