@@ -564,10 +564,25 @@ let map, clusterer, infoWindow, heatmap, heatmapTurnout, heatmapRed, heatmapYell
 let heatmapMode = 0;
 let activeQuery = '';                        // current search filter
 const markerCache = new Array(mapped.length).fill(null); // sparse — only viewport markers exist
-const resultMarkerCache = new Array(mapped.length).fill(null); // mode 4 result-colored markers
+const resultMarkerCache = new Array(mapped.length).fill(null); // mode 0 result-colored markers
 
-function resultPinSize() {
-  return Math.min(22, Math.round(7 * Math.pow(1.35, Math.max(0, map.getZoom() - 10))));
+// Percentile range for voted counts (same outlier-resistant approach as voterCounts)
+const votedCounts = votingStations.map(s => s.voting.voted ?? 0).sort((a, b) => a - b);
+const nv = votedCounts.length;
+const sqrtVotedP5  = nv ? Math.sqrt(votedCounts[Math.floor(nv * 0.05)]) : 0;
+const sqrtVotedP95 = nv ? Math.sqrt(votedCounts[Math.floor(nv * 0.95)]) : 1;
+
+function votedBaseSize(st) {
+  const voted = st.voting?.voted;
+  if (voted == null) return 5;
+  const t = Math.max(0, Math.min(1, (Math.sqrt(voted) - sqrtVotedP5) / (sqrtVotedP95 - sqrtVotedP5)));
+  return Math.round(4 + t * 14); // 4px → 18px base at zoom 10
+}
+
+function resultPinSize(st) {
+  const base = votedBaseSize(st);
+  const zoom = map.getZoom();
+  return Math.min(50, Math.round(base * Math.pow(1.35, Math.max(0, zoom - 10))));
 }
 
 function makeResultPin(st, size) {
@@ -698,8 +713,6 @@ function refreshResultMarkers() {
   const latPad = (ne.lat() - sw.lat()) * 0.5;
   const lngPad = (ne.lng() - sw.lng()) * 0.5;
   const q = activeQuery;
-  const size = resultPinSize();
-
   mapped.forEach((st, i) => {
     if (!st.voting?.results?.length) return;
     const inView = st.geo.lat >= sw.lat() - latPad && st.geo.lat <= ne.lat() + latPad
@@ -710,7 +723,8 @@ function refreshResultMarkers() {
 
     if (inView && matches) {
       if (!resultMarkerCache[i]) {
-        const m = createMarker(st, i, makeResultPin(st, size));
+        const m = createMarker(st, i, makeResultPin(st, resultPinSize(st)));
+        m._baseSize = votedBaseSize(st);
         m.map = map;
         resultMarkerCache[i] = m;
       }
@@ -855,11 +869,14 @@ function initMap() {
     heatmapRed.set('radius', rResults);
     heatmapYellow.set('radius', rResults);
     heatmapGreen.set('radius', rResults);
-    // mode 4: update existing result pin sizes in place
+    // mode 0: update existing result pin sizes in place (size encodes voted count)
     if (heatmapMode === 0) {
-      const size = resultPinSize();
+      const zoomFactor = Math.pow(1.35, Math.max(0, map.getZoom() - 10));
       resultMarkerCache.forEach(m => {
-        if (m) { m.content.style.width = m.content.style.height = `${size}px`; }
+        if (m) {
+          const sz = Math.min(50, Math.round(m._baseSize * zoomFactor));
+          m.content.style.width = m.content.style.height = `${sz}px`;
+        }
       });
     }
   }
