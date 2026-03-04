@@ -29,16 +29,23 @@
     .chip-mapped  { background: #a6e3a1; color: #1e1e2e; }
     .chip-miss    { background: #f38ba8; color: #1e1e2e; }
     .chip-turnout { background: #89b4fa; color: #1e1e2e; }
-    #toggle-btn {
+    #map-mode-select {
       margin-top: 10px; width: 100%; padding: 7px 10px;
       border-radius: 8px; border: 1px solid #45475a;
       background: #313244; color: #cdd6f4;
       font-size: 12px; font-weight: 600; cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236c7086'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+      transition: border-color 0.15s;
     }
-    #toggle-btn:hover { background: #45475a; border-color: #cba6f7; }
-    #toggle-btn.heatmap-active         { background: #f9e2af22; border-color: #f9e2af; color: #f9e2af; }
-    #toggle-btn.heatmap-turnout-active { background: #89b4fa22; border-color: #89b4fa; color: #89b4fa; }
+    #map-mode-select:hover  { border-color: #cba6f7; }
+    #map-mode-select:focus  { outline: none; border-color: #cba6f7; }
+    #map-mode-select.mode-voters  { border-color: #f9e2af; color: #f9e2af; background-color: #f9e2af22; }
+    #map-mode-select.mode-turnout { border-color: #89b4fa; color: #89b4fa; background-color: #89b4fa22; }
+    #map-mode-select option { background: #313244; color: #cdd6f4; }
     #search-wrap { padding: 10px 12px; background: #181825; border-bottom: 1px solid #313244; }
     #search {
       width: 100%; padding: 7px 10px; border-radius: 8px;
@@ -214,7 +221,11 @@
       <span class="stat-chip chip-miss" id="stat-miss">…</span>
       <span class="stat-chip chip-turnout" id="stat-turnout" style="display:none;">…</span>
     </div>
-    <button id="toggle-btn">🌡 <span data-i18n="Топлотна мапа бирачких места">Топлотна мапа бирачких места</span></button>
+    <select id="map-mode-select">
+      <option value="0" data-i18n="📍 Маркери" selected>📍 Маркери</option>
+      <option value="1" data-i18n="🌡 Топлотна мапа: број бирача">🌡 Топлотна мапа: број бирача</option>
+      <option value="2" data-i18n="📊 Топлотна мапа: излазност">📊 Топлотна мапа: излазност</option>
+    </select>
     <button id="suggest-location-btn">+ <span data-i18n="Предложи локацију">Предложи локацију</span></button>
   </div>
   <div id="search-wrap">
@@ -642,45 +653,36 @@ function initMap() {
     opacity: 0.75,
   });
 
-  // ── toggle button ──────────────────────────────────────────────────────────
-  document.getElementById('toggle-btn').addEventListener('click', toggleView);
+  // ── map mode dropdown ──────────────────────────────────────────────────────
+  const modeSelect = document.getElementById('map-mode-select');
+  // Hide turnout option if no data available
+  if (!votingStations.length) modeSelect.querySelector('[value="2"]').disabled = true;
+  modeSelect.addEventListener('change', () => setMapMode(parseInt(modeSelect.value, 10)));
 }
 
 window.initMap = initMap;
 
-function toggleView() {
-  // Cycle: 0 (markers) → 1 (voter-count heatmap) → 2 (turnout heatmap) → 0
-  heatmapMode = (heatmapMode + 1) % 3;
-  // Skip turnout mode if no turnout data is available
-  if (heatmapMode === 2 && !votingStations.length) {
-    heatmapMode = 0;
-  }
+function setMapMode(mode) {
+  heatmapMode = mode;
 
-  const btn = document.getElementById('toggle-btn');
-  const span = btn.querySelector('[data-i18n]');
+  const sel = document.getElementById('map-mode-select');
+  sel.value = String(mode);
+  sel.classList.remove('mode-voters', 'mode-turnout');
 
   heatmap.setMap(null);
   heatmapTurnout.setMap(null);
-  btn.classList.remove('heatmap-active', 'heatmap-turnout-active');
 
-  if (heatmapMode === 1) {
+  if (mode === 1) {
     markerCache.fill(null);
     clusterer.clearMarkers();
     heatmap.setMap(map);
-    span.setAttribute('data-i18n', 'Топлотна мапа: излазност');
-    span.textContent = t('Топлотна мапа: излазност');
-    btn.childNodes[0].textContent = '🌡 ';
-    btn.classList.add('heatmap-active');
-  } else if (heatmapMode === 2) {
+    sel.classList.add('mode-voters');
+  } else if (mode === 2) {
+    markerCache.fill(null);
+    clusterer.clearMarkers();
     heatmapTurnout.setMap(map);
-    span.setAttribute('data-i18n', 'Прикажи маркере');
-    span.textContent = t('Прикажи маркере');
-    btn.childNodes[0].textContent = '📊 ';
-    btn.classList.add('heatmap-turnout-active');
+    sel.classList.add('mode-turnout');
   } else {
-    span.setAttribute('data-i18n', 'Топлотна мапа: бирачка места');
-    span.textContent = t('Топлотна мапа: бирачка места');
-    btn.childNodes[0].textContent = '🌡 ';
     applyFilter(document.getElementById('search').value);
   }
 }
