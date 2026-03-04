@@ -615,10 +615,10 @@ function flyToCommunit(communityId) {
     stSearchInput.value = '';
     stPickerHint.style.display = 'none';
     // show station name + community name
-    stDisplaySec.style.display = '';
+    stDisplaySec.style.display = 'block';
     // show picker section BEFORE creating/resizing the map — container must have
     // non-zero dimensions or the map renders blank
-    pickerSection.style.display = '';
+    pickerSection.style.display = 'block';
     if (pickerMarker) { pickerMarker.map = null; pickerMarker = null; }
     document.getElementById('picker-coords').textContent = t('нису изабране');
     document.getElementById('field-new-lat').value = '';
@@ -678,7 +678,7 @@ function flyToCommunit(communityId) {
       fillStationFields(station);
       stPickerSec.style.display   = 'none';
       stDisplaySec.style.display  = '';
-      pickerSection.style.display = '';
+      pickerSection.style.display = 'block';
       document.getElementById('picker-coords').textContent = 'нису изабране';
       document.getElementById('correction-modal-title').textContent = '📍 Предложи исправку локације';
     }
