@@ -43,8 +43,9 @@
     }
     #map-mode-select:hover  { border-color: #cba6f7; }
     #map-mode-select:focus  { outline: none; border-color: #cba6f7; }
-    #map-mode-select.mode-voters  { border-color: #f9e2af; color: #f9e2af; background-color: #f9e2af22; }
-    #map-mode-select.mode-turnout { border-color: #89b4fa; color: #89b4fa; background-color: #89b4fa22; }
+    #map-mode-select.mode-voters   { border-color: #f9e2af; color: #f9e2af; background-color: #f9e2af22; }
+    #map-mode-select.mode-turnout  { border-color: #89b4fa; color: #89b4fa; background-color: #89b4fa22; }
+    #map-mode-select.mode-results  { border-color: #a6e3a1; color: #a6e3a1; background-color: #a6e3a122; }
     #map-mode-select option { background: #313244; color: #cdd6f4; }
     #search-wrap { padding: 10px 12px; background: #181825; border-bottom: 1px solid #313244; }
     #search {
@@ -225,6 +226,7 @@
       <option value="0" data-i18n="📍 Маркери" selected>📍 Маркери</option>
       <option value="1" data-i18n="🌡 Топлотна мапа: број бирача">🌡 Топлотна мапа: број бирача</option>
       <option value="2" data-i18n="📊 Топлотна мапа: излазност">📊 Топлотна мапа: излазност</option>
+      <option value="3" data-i18n="🗳 Победник по бирачком месту">🗳 Победник по бирачком месту</option>
     </select>
     <button id="suggest-location-btn">+ <span data-i18n="Предложи локацију">Предложи локацију</span></button>
   </div>
@@ -356,11 +358,22 @@ for (const comm of DATA.communities) {
 const mapped   = allStations.filter(s => s.geo);
 const unmapped = allStations.filter(s => !s.geo);
 
-// ── Overall turnout across all stations with voting data ──────────────────────
+// ── Overall turnout + incumbent detection ─────────────────────────────────────
 const votingStations = allStations.filter(s => s.voting);
 const totalVoted      = votingStations.reduce((s, x) => s + (x.voting.voted      || 0), 0);
 const totalRegistered = votingStations.reduce((s, x) => s + (x.voting.registered || 0), 0);
 const overallTurnout  = totalRegistered > 0 ? (totalVoted / totalRegistered * 100).toFixed(1) : null;
+
+// Dominant party = party with the most aggregate votes across all stations
+const _partyTotals = {};
+for (const s of votingStations) {
+  for (const r of (s.voting.results || [])) {
+    _partyTotals[r.party] = (_partyTotals[r.party] || 0) + r.votes;
+  }
+}
+const incumbentParty = Object.keys(_partyTotals).length
+  ? Object.entries(_partyTotals).sort((a, b) => b[1] - a[1])[0][0]
+  : null;
 
 function updateStatChips() {
   document.getElementById('stat-total').textContent  = `${t('Укупно')}: ${allStations.length}`;
@@ -439,8 +452,8 @@ function buildCommunityList(filter) {
 buildCommunityList('');
 
 // ── Google Maps init ──────────────────────────────────────────────────────────
-let map, clusterer, infoWindow, heatmap, heatmapTurnout;
-// heatmapMode: 0 = markers, 1 = voter-count heatmap, 2 = turnout heatmap
+let map, clusterer, infoWindow, heatmap, heatmapTurnout, heatmapIncumbent, heatmapOpposition;
+// heatmapMode: 0 = markers, 1 = voter-count heatmap, 2 = turnout heatmap, 3 = results (incumbent vs opposition)
 let heatmapMode = 0;
 let activeQuery = '';                        // current search filter
 const markerCache = new Array(mapped.length).fill(null); // sparse — only viewport markers exist
@@ -653,10 +666,32 @@ function initMap() {
     opacity: 0.75,
   });
 
+  // ── results heatmap (incumbent won = red, opposition won = green) ───────────
+  // Incumbent wins: weight = their vote %; opposition wins: weight = winner's vote %
+  const _withResults = s => s.voting?.results?.length;
+  heatmapIncumbent = new google.maps.visualization.HeatmapLayer({
+    data: mapped.filter(s => _withResults(s) && s.voting.results[0].party === incumbentParty)
+      .map(s => {
+        const r = s.voting.results.find(x => x.party === incumbentParty);
+        return { location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: r ? r.pct : 0 };
+      }),
+    map: null, radius: 28, opacity: 0.85,
+    gradient: ['rgba(220,38,38,0)', 'rgba(220,38,38,0.4)', 'rgba(220,38,38,1)'],
+  });
+  heatmapOpposition = new google.maps.visualization.HeatmapLayer({
+    data: mapped.filter(s => _withResults(s) && s.voting.results[0].party !== incumbentParty)
+      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voting.results[0].pct })),
+    map: null, radius: 28, opacity: 0.85,
+    gradient: ['rgba(22,163,74,0)', 'rgba(22,163,74,0.4)', 'rgba(22,163,74,1)'],
+  });
+
   // ── map mode dropdown ──────────────────────────────────────────────────────
   const modeSelect = document.getElementById('map-mode-select');
-  // Hide turnout option if no data available
-  if (!votingStations.length) modeSelect.querySelector('[value="2"]').disabled = true;
+  // Disable options if data is unavailable
+  if (!votingStations.length) {
+    modeSelect.querySelector('[value="2"]').disabled = true;
+    modeSelect.querySelector('[value="3"]').disabled = true;
+  }
   modeSelect.addEventListener('change', () => setMapMode(parseInt(modeSelect.value, 10)));
 }
 
@@ -667,10 +702,12 @@ function setMapMode(mode) {
 
   const sel = document.getElementById('map-mode-select');
   sel.value = String(mode);
-  sel.classList.remove('mode-voters', 'mode-turnout');
+  sel.classList.remove('mode-voters', 'mode-turnout', 'mode-results');
 
   heatmap.setMap(null);
   heatmapTurnout.setMap(null);
+  heatmapIncumbent.setMap(null);
+  heatmapOpposition.setMap(null);
 
   if (mode === 1) {
     markerCache.fill(null);
@@ -682,6 +719,12 @@ function setMapMode(mode) {
     clusterer.clearMarkers();
     heatmapTurnout.setMap(map);
     sel.classList.add('mode-turnout');
+  } else if (mode === 3) {
+    markerCache.fill(null);
+    clusterer.clearMarkers();
+    heatmapIncumbent.setMap(map);
+    heatmapOpposition.setMap(map);
+    sel.classList.add('mode-results');
   } else {
     applyFilter(document.getElementById('search').value);
   }
@@ -715,6 +758,19 @@ function applyFilter(q) {
         || t(s.communityName).toLowerCase().includes(q)))
       .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voting.turnout_pct }));
     heatmapTurnout.setData(points);
+  } else if (heatmapMode === 3) {
+    const base = mapped.filter(s => s.voting?.results?.length && (!q
+      || t(s.name).toLowerCase().includes(q)
+      || t(s.communityName).toLowerCase().includes(q)));
+    heatmapIncumbent.setData(base
+      .filter(s => s.voting.results[0].party === incumbentParty)
+      .map(s => {
+        const r = s.voting.results.find(x => x.party === incumbentParty);
+        return { location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: r ? r.pct : 0 };
+      }));
+    heatmapOpposition.setData(base
+      .filter(s => s.voting.results[0].party !== incumbentParty)
+      .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voting.results[0].pct })));
   } else {
     // Drop all cached markers so refreshMarkers() rebuilds only matches in viewport
     markerCache.fill(null);
