@@ -80685,8 +80685,13 @@
           "id": "332382",
           "name": "8. КАЗНЕНО-ПОПРАВНИ ЗАВОД - СОМБОР, СТАПАРСКИ ПУТ БР. 1",
           "voter_count": 103,
-          "geo": null,
-          "number": 8
+          "geo": {
+            "lat": 45.768168,
+            "lon": 19.119702
+          },
+          "number": 8,
+          "geo_approx": true,
+          "geo_source": "volunteer"
         },
         {
           "id": "332383",
