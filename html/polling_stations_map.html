@@ -121,6 +121,30 @@
     #modal-success .success-icon { font-size: 40px; margin-bottom: 10px; }
     #modal-success p { color: #a6e3a1; font-size: 15px; }
 
+    /* ── station picker (shown only in "new location" mode) ─────────────── */
+    #station-picker-section { margin-bottom: 4px; }
+    #station-picker-section label { display: block; font-size: 12px; color: #a6adc8; margin-bottom: 4px; }
+    #station-search-input {
+      width: 100%; padding: 8px 10px; border-radius: 8px;
+      border: 1px solid #45475a; background: #313244; color: #cdd6f4;
+      font-size: 13px; outline: none;
+    }
+    #station-search-input:focus { border-color: #cba6f7; }
+    #station-search-results {
+      max-height: 180px; overflow-y: auto; margin-top: 4px;
+      border: 1px solid #45475a; border-radius: 8px; background: #181825;
+    }
+    .station-result-item {
+      padding: 7px 12px; cursor: pointer; border-bottom: 1px solid #313244;
+      font-size: 12px;
+    }
+    .station-result-item:last-child { border-bottom: none; }
+    .station-result-item:hover, .station-result-item.selected { background: #313244; }
+    .station-result-item .sri-name { color: #cdd6f4; }
+    .station-result-item .sri-comm { color: #6c7086; font-size: 11px; margin-top: 1px; }
+    #station-picker-hint { font-size: 11px; color: #f9e2af; margin-top: 6px; display: none; }
+    #picker-section { display: none; }
+
     /* ── suggest-location button for unmapped stations ───────────────────── */
     #suggest-location-btn {
       margin-top: 10px; width: 100%; padding: 7px 10px;
@@ -180,15 +204,28 @@
         <input type="hidden" name="new-lat" id="field-new-lat">
         <input type="hidden" name="new-lon" id="field-new-lon">
 
-        <label>Бирачко место</label>
-        <input type="text" id="display-station-name" readonly style="opacity:0.6;cursor:default;">
+        <!-- Station picker — shown only when opened from sidebar button -->
+        <div id="station-picker-section" style="display:none">
+          <label>Претражи бирачко место без координате <span style="color:#f38ba8">*</span></label>
+          <input type="text" id="station-search-input" placeholder="нпр. Основна школа, Нови Сад…" autocomplete="off">
+          <div id="station-search-results"></div>
+          <p id="station-picker-hint">⬆ Прво изаберите бирачко место из листе.</p>
+        </div>
 
-        <label>Општина</label>
-        <input type="text" id="display-community-name" readonly style="opacity:0.6;cursor:default;">
+        <!-- Station display — shown when station is known -->
+        <div id="station-display-section">
+          <label>Бирачко место</label>
+          <input type="text" id="display-station-name" readonly style="opacity:0.6;cursor:default;">
+          <label>Општина</label>
+          <input type="text" id="display-community-name" readonly style="opacity:0.6;cursor:default;">
+        </div>
 
-        <label>Кликните на мапи да поставите пин на тачну локацију</label>
-        <div id="picker-map"></div>
-        <p id="picker-hint">📌 Координате: <span id="picker-coords">нису изабране</span></p>
+        <!-- Map picker — hidden until station is selected (in "new" mode) or always shown (in "correct" mode) -->
+        <div id="picker-section">
+          <label>Кликните на мапи да поставите пин на тачну локацију</label>
+          <div id="picker-map"></div>
+          <p id="picker-hint">📌 Координате: <span id="picker-coords">нису изабране</span></p>
+        </div>
 
         <div class="check-row">
           <input type="checkbox" name="is-approx" id="field-is-approx" value="yes">
@@ -476,39 +513,109 @@ function flyToCommunit(communityId) {
 <!-- ── Correction Modal Logic ────────────────────────────────────────────── -->
 <script>
 (function() {
-  const overlay   = document.getElementById('correction-overlay');
-  const formWrap  = document.getElementById('modal-form-wrap');
-  const successEl = document.getElementById('modal-success');
-  const form      = document.getElementById('correction-form');
+  const overlay        = document.getElementById('correction-overlay');
+  const formWrap       = document.getElementById('modal-form-wrap');
+  const successEl      = document.getElementById('modal-success');
+  const form           = document.getElementById('correction-form');
+  const pickerSection  = document.getElementById('picker-section');
+  const stPickerSec    = document.getElementById('station-picker-section');
+  const stDisplaySec   = document.getElementById('station-display-section');
+  const stPickerHint   = document.getElementById('station-picker-hint');
+  const stSearchInput  = document.getElementById('station-search-input');
+  const stResultsList  = document.getElementById('station-search-results');
   let pickerMap, pickerMarker;
+  let newLocationMode = false; // true when opened from sidebar button
 
-  function openModal(station) {
-    // station: { id, name, communityId, communityName, geo } — geo may be null
-    document.getElementById('field-station-id').value    = station.id    || '';
-    document.getElementById('field-community-id').value  = station.communityId || '';
-    document.getElementById('field-station-name').value  = station.name  || '';
-    document.getElementById('field-community-name').value= station.communityName || '';
-    document.getElementById('field-current-lat').value   = station.geo ? station.geo.lat : '';
-    document.getElementById('field-current-lon').value   = station.geo ? station.geo.lon : '';
+  // ── station picker logic (new-location mode) ───────────────────────────────
+  function renderStationResults(query) {
+    const q = query.toLowerCase().trim();
+    stResultsList.innerHTML = '';
+    if (!q) return;
+    const matches = unmapped.filter(s =>
+      s.name.toLowerCase().includes(q) || s.communityName.toLowerCase().includes(q)
+    ).slice(0, 40);
+    matches.forEach(st => {
+      const item = document.createElement('div');
+      item.className = 'station-result-item';
+      item.innerHTML = `<div class="sri-name">${st.name}</div><div class="sri-comm">${st.communityName}</div>`;
+      item.addEventListener('click', () => selectUnmappedStation(st));
+      stResultsList.appendChild(item);
+    });
+    if (matches.length === 0) {
+      stResultsList.innerHTML = '<div class="station-result-item" style="color:#6c7086;cursor:default;">Нема резултата.</div>';
+    }
+  }
+
+  function selectUnmappedStation(st) {
+    fillStationFields(st);
+    stResultsList.innerHTML = '';
+    stSearchInput.value = '';
+    stPickerHint.style.display = 'none';
+    // show map picker now that a station is chosen
+    pickerSection.style.display = '';
+    google.maps.event.trigger(pickerMap, 'resize');
+    pickerMap.setCenter({ lat: 44.0, lng: 21.0 });
+    pickerMap.setZoom(7);
+    if (pickerMarker) { pickerMarker.map = null; pickerMarker = null; }
+    document.getElementById('picker-coords').textContent = 'нису изабране';
+    document.getElementById('field-new-lat').value = '';
+    document.getElementById('field-new-lon').value = '';
+  }
+
+  stSearchInput.addEventListener('input', e => renderStationResults(e.target.value));
+
+  // ── fill hidden + display fields ───────────────────────────────────────────
+  function fillStationFields(st) {
+    document.getElementById('field-station-id').value     = st.id    || '';
+    document.getElementById('field-community-id').value   = st.communityId || '';
+    document.getElementById('field-station-name').value   = st.name  || '';
+    document.getElementById('field-community-name').value = st.communityName || '';
+    document.getElementById('field-current-lat').value    = st.geo ? st.geo.lat : '';
+    document.getElementById('field-current-lon').value    = st.geo ? st.geo.lon : '';
+    document.getElementById('display-station-name').value    = st.name || '';
+    document.getElementById('display-community-name').value  = st.communityName || '';
+  }
+
+  // ── openModal ──────────────────────────────────────────────────────────────
+  // mode: 'correct' — opened from info window (station with known coords)
+  //       'new'     — opened from sidebar button (user picks station + location)
+  function openModal(station, mode) {
+    newLocationMode = (mode === 'new');
     document.getElementById('field-new-lat').value       = '';
     document.getElementById('field-new-lon').value       = '';
-    document.getElementById('display-station-name').value   = station.name || '';
-    document.getElementById('display-community-name').value = station.communityName || '';
-    document.getElementById('picker-coords').textContent    = 'нису изабране';
-    document.getElementById('field-comment').value          = '';
+    document.getElementById('field-comment').value       = '';
     document.getElementById('field-submitter-name').value   = '';
     document.getElementById('field-submitter-contact').value= '';
     document.getElementById('field-is-approx').checked      = false;
+
+    if (newLocationMode) {
+      // clear station fields — user must pick from search
+      fillStationFields({ id:'', communityId:'', name:'', communityName:'', geo: null });
+      stPickerSec.style.display   = '';
+      stDisplaySec.style.display  = 'none';
+      pickerSection.style.display = 'none'; // shown after station is chosen
+      stPickerHint.style.display  = '';
+      stSearchInput.value         = '';
+      stResultsList.innerHTML     = '';
+      document.getElementById('correction-modal-title').textContent = '📍 Предложи локацију';
+    } else {
+      fillStationFields(station);
+      stPickerSec.style.display   = 'none';
+      stDisplaySec.style.display  = '';
+      pickerSection.style.display = '';
+      document.getElementById('picker-coords').textContent = 'нису изабране';
+      document.getElementById('correction-modal-title').textContent = '📍 Предложи исправку локације';
+    }
 
     formWrap.style.display  = '';
     successEl.style.display = 'none';
     overlay.classList.add('open');
 
-    // init or update picker mini-map
-    const startPos = station.geo
+    // init or reposition picker map
+    const startPos  = (!newLocationMode && station.geo)
       ? { lat: station.geo.lat, lng: station.geo.lon }
       : { lat: 44.0, lng: 21.0 };
-    const startZoom = station.geo ? 16 : 7;
+    const startZoom = (!newLocationMode && station.geo) ? 16 : 7;
 
     if (!pickerMap) {
       pickerMap = new google.maps.Map(document.getElementById('picker-map'), {
@@ -524,8 +631,7 @@ function flyToCommunit(communityId) {
       if (pickerMarker) { pickerMarker.map = null; pickerMarker = null; }
     }
 
-    // pre-place pin if station already has coords
-    if (station.geo) {
+    if (!newLocationMode && station.geo) {
       placePickerPin(new google.maps.LatLng(station.geo.lat, station.geo.lon));
     }
   }
@@ -539,8 +645,8 @@ function flyToCommunit(communityId) {
     });
     const lat = latLng.lat().toFixed(6);
     const lng = latLng.lng().toFixed(6);
-    document.getElementById('field-new-lat').value      = lat;
-    document.getElementById('field-new-lon').value      = lng;
+    document.getElementById('field-new-lat').value       = lat;
+    document.getElementById('field-new-lon').value       = lng;
     document.getElementById('picker-coords').textContent = `${lat}, ${lng}`;
   }
 
@@ -550,9 +656,13 @@ function flyToCommunit(communityId) {
   document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 
-  // form submit — use fetch so we stay on the page
+  // form submit
   form.addEventListener('submit', async e => {
     e.preventDefault();
+    if (newLocationMode && !document.getElementById('field-station-id').value) {
+      alert('Молимо прво изаберите бирачко место из листе.');
+      return;
+    }
     const newLat = document.getElementById('field-new-lat').value;
     const newLon = document.getElementById('field-new-lon').value;
     if (!newLat || !newLon) {
@@ -573,19 +683,17 @@ function flyToCommunit(communityId) {
     }
   });
 
-  // expose openModal globally so marker click handlers can call it
-  window.openCorrectionModal = openModal;
+  // expose globally for marker click handlers
+  window.openCorrectionModal = (st) => openModal(st, 'correct');
 
-  // global "suggest location" button — opens modal without pre-selected station
+  // sidebar button — user picks both station and location
   document.getElementById('suggest-location-btn').addEventListener('click', () => {
-    // find first unmapped station for the placeholder, or use empty
-    const st = unmapped[0] || { id: '', name: '', communityId: '', communityName: '', geo: null };
-    openModal(st);
+    openModal(null, 'new');
   });
 })();
 </script>
 
-<!-- Replace YOUR_API_KEY below with your Google MaAdjups API key -->
+<!-- Replace YOUR_API_KEY below with your Google Maps API key -->
 <script async defer
   src="https://maps.googleapis.com/maps/api/js?key=MAPS_API_KEY_PLACEHOLDER&callback=initMap&libraries=marker,visualization&loading=async">
 </script>
