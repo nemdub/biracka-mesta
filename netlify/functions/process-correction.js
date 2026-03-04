@@ -100,7 +100,7 @@ exports.handler = async function(event) {
       const decoded = Buffer.from(fileJson.content, 'base64').toString('utf8');
       jsonData = JSON.parse(decoded);
     } catch (err) {
-      return { statusCode: 500, body: JSON.stringify({ error: 'Failed to parse JSON from GitHub: ' + err.message }) };
+      return { statusCode: 500, body: JSON.stringify({ error: 'Failed to parse JSON from GitHub: ' + err.message + ', text: ' + text}) };
     }
 
     // 3. Update the station
