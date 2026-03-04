@@ -1,0 +1,9 @@
+[build]
+  publish = "html"
+  command = "python3 generate_data.py polling_stations_86.json html/polling_stations_data.js && sed -i \"s/MAPS_API_KEY_PLACEHOLDER/$GOOGLE_MAPS_API_KEY/g\" html/polling_stations_map.html html/admin.html"
+  functions = "netlify/functions"
+
+[[headers]]
+  for = "/admin.html"
+  [headers.values]
+    X-Robots-Tag = "noindex"
