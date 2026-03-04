@@ -443,6 +443,10 @@ function buildPartyPicker() {
       if (cb.checked) INCUMBENT_PARTIES.add(party);
       else INCUMBENT_PARTIES.delete(party);
       rebuildResultHeatmaps();
+      if (heatmapMode === 0) {
+        resultMarkerCache.forEach((m, i) => { if (m) { m.map = null; resultMarkerCache[i] = null; } });
+        refreshResultMarkers();
+      }
     });
 
     const pctSpan = document.createElement('span');
