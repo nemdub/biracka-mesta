@@ -406,26 +406,31 @@ const totalRegistered = votingStations.reduce((s, x) => s + (x.voting.registered
 const overallTurnout  = totalRegistered > 0 ? (totalVoted / totalRegistered * 100).toFixed(1) : null;
 
 // ── Party picker for results heatmap ──────────────────────────────────────────
-// Default coalition (number prefix already stripped by merge script)
-const INCUMBENT_PARTIES = new Set([
+// Incumbent coalition stored as a Set of party indices for fast lookup
+const _incumbentNames = new Set([
   'ALEKSANDAR VUČIĆ - SRBIJA NE SME DA STANE',
   'IVICA DAČIĆ – PREMIJER SRBIJE',
   'DR VOJISLAV ŠEŠELj - SRPSKA RADIKALNA STRANKA',
   'VAJDASÁGI MAGYAR SZÖVETSÉG – ELNÖKÜNKÉRT, KÖZÖSSÉGÜNKÉRT, A JÖVŐÉRT! – SAVEZ VOJVOĐANSKIH MAĐARA – ZA NAŠEG PREDSEDNIKA, ZA NAŠU ZAJEDNICU, ZA BUDUĆNOST!',
   'MILICA ĐURĐEVIĆ STAMENKOVSKI - BOŠKO OBRADOVIĆ - NACIONALNO OKUPLjANjE - DRŽAVOTVORNA SNAGA - SRPSKA STRANKA ZAVETNICI - SRPSKI POKRET DVERI',
 ]);
+const INCUMBENT_PARTIES = new Set(
+  PARTIES.reduce((acc, name, i) => { if (_incumbentNames.has(name)) acc.push(i); return acc; }, [])
+);
 
 // All parties ranked by national total votes (computed once)
-const _partyVotes = {};
+const _partyVotes = new Array(PARTIES.length).fill(0);
 for (const s of votingStations) {
   for (const r of (s.voting.results || [])) {
-    _partyVotes[PARTIES[r.party]] = (_partyVotes[PARTIES[r.party]] || 0) + r.votes;
+    _partyVotes[r.party] += r.votes;
   }
 }
-const _totalAllVotes = Object.values(_partyVotes).reduce((a, b) => a + b, 0);
-const allPartiesRanked = Object.entries(_partyVotes)
-  .sort((a, b) => b[1] - a[1])
-  .map(([party, votes]) => ({
+const _totalAllVotes = _partyVotes.reduce((a, b) => a + b, 0);
+const allPartiesRanked = PARTIES
+  .map((party, idx) => ({ idx, party, votes: _partyVotes[idx] }))
+  .sort((a, b) => b.votes - a.votes)
+  .map(({ idx, party, votes }) => ({
+    idx,
     party,
     pct: _totalAllVotes > 0 ? (votes / _totalAllVotes * 100).toFixed(1) : '0.0',
   }));
@@ -435,17 +440,17 @@ function buildPartyPicker() {
   if (_pickerBuilt) return;
   _pickerBuilt = true;
   const list = document.getElementById('party-list');
-  for (const { party, pct } of allPartiesRanked) {
+  for (const { idx, party, pct } of allPartiesRanked) {
     const label = document.createElement('label');
     label.className = 'party-row';
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
-    cb.value = party;
-    cb.checked = INCUMBENT_PARTIES.has(party);
+    cb.value = idx;
+    cb.checked = INCUMBENT_PARTIES.has(idx);
     cb.addEventListener('change', () => {
-      if (cb.checked) INCUMBENT_PARTIES.add(party);
-      else INCUMBENT_PARTIES.delete(party);
+      if (cb.checked) INCUMBENT_PARTIES.add(idx);
+      else INCUMBENT_PARTIES.delete(idx);
       rebuildResultHeatmaps();
       if (heatmapMode === 0) {
         resultMarkerCache.forEach((m, i) => { if (m) { m.map = null; resultMarkerCache[i] = null; } });
@@ -470,7 +475,7 @@ function buildPartyPicker() {
 // Returns the combined vote % of the incumbent coalition at a station (0–100)
 function incPctFor(s) {
   return (s.voting.results || [])
-    .filter(r => INCUMBENT_PARTIES.has(PARTIES[r.party]))
+    .filter(r => INCUMBENT_PARTIES.has(r.party))
     .reduce((sum, r) => sum + r.pct, 0);
 }
 
