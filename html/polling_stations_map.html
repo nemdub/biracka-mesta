@@ -386,6 +386,9 @@ let currentScript = localStorage.getItem('srScript') || 'cyr';
 // t() — transliterate a Cyrillic string if Latin mode is active
 function t(cyrStr) { return currentScript === 'lat' ? cyrToLat(cyrStr) : cyrStr; }
 
+// ── party lookup (indices → names) ────────────────────────────────────────────
+const PARTIES = DATA.parties || [];
+
 // ── build flat index ──────────────────────────────────────────────────────────
 const allStations = [];
 for (const comm of DATA.communities) {
@@ -407,6 +410,7 @@ const overallTurnout  = totalRegistered > 0 ? (totalVoted / totalRegistered * 10
 const INCUMBENT_PARTIES = new Set([
   'ALEKSANDAR VUČIĆ - SRBIJA NE SME DA STANE',
   'IVICA DAČIĆ – PREMIJER SRBIJE',
+  'DR VOJISLAV ŠEŠELj - SRPSKA RADIKALNA STRANKA',
   'VAJDASÁGI MAGYAR SZÖVETSÉG – ELNÖKÜNKÉRT, KÖZÖSSÉGÜNKÉRT, A JÖVŐÉRT! – SAVEZ VOJVOĐANSKIH MAĐARA – ZA NAŠEG PREDSEDNIKA, ZA NAŠU ZAJEDNICU, ZA BUDUĆNOST!',
   'MILICA ĐURĐEVIĆ STAMENKOVSKI - BOŠKO OBRADOVIĆ - NACIONALNO OKUPLjANjE - DRŽAVOTVORNA SNAGA - SRPSKA STRANKA ZAVETNICI - SRPSKI POKRET DVERI',
 ]);
@@ -415,7 +419,7 @@ const INCUMBENT_PARTIES = new Set([
 const _partyVotes = {};
 for (const s of votingStations) {
   for (const r of (s.voting.results || [])) {
-    _partyVotes[r.party] = (_partyVotes[r.party] || 0) + r.votes;
+    _partyVotes[PARTIES[r.party]] = (_partyVotes[PARTIES[r.party]] || 0) + r.votes;
   }
 }
 const _totalAllVotes = Object.values(_partyVotes).reduce((a, b) => a + b, 0);
@@ -466,7 +470,7 @@ function buildPartyPicker() {
 // Returns the combined vote % of the incumbent coalition at a station (0–100)
 function incPctFor(s) {
   return (s.voting.results || [])
-    .filter(r => INCUMBENT_PARTIES.has(r.party))
+    .filter(r => INCUMBENT_PARTIES.has(PARTIES[r.party]))
     .reduce((sum, r) => sum + r.pct, 0);
 }
 
@@ -631,10 +635,11 @@ function createMarker(st, i, contentEl = null) {
         const maxVotes = top[0].votes || 1;
         const rows = top.map(r => {
           const barW = Math.round(r.votes / maxVotes * 100);
-          const name = r.party.length > 40 ? r.party.slice(0, 38) + '…' : r.party;
+          const partyName = PARTIES[r.party];
+          const name = partyName.length > 40 ? partyName.slice(0, 38) + '…' : partyName;
           return `<div style="margin-bottom:3px;">
             <div style="display:flex;justify-content:space-between;font-size:10px;line-height:1.3;">
-              <span style="color:#333;flex:1;margin-right:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="${r.party.replace(/"/g,'&quot;')}">${name}</span>
+              <span style="color:#333;flex:1;margin-right:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="${partyName.replace(/"/g,'&quot;')}">${name}</span>
               <span style="color:#555;white-space:nowrap;">${r.votes.toLocaleString('sr-RS')} <span style="color:#999;">(${r.pct.toFixed(1)}%)</span></span>
             </div>
             <div style="background:#eee;border-radius:2px;height:3px;margin-top:1px;">
