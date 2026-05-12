@@ -163,8 +163,8 @@ function buildNearbyUrl(cacheBust) {
   return url;
 }
 
-function buildRegionsUrl(cacheBust) {
-  let url = `${BASE_URL}/api/regions`;
+function buildLocalitiesUrl(cacheBust) {
+  let url = `${BASE_URL}/api/localities`;
   if (cacheBust) url += `?_cb=${Math.random().toString(36).slice(2, 10)}`;
   return url;
 }
@@ -172,8 +172,8 @@ function buildRegionsUrl(cacheBust) {
 export default function () {
   if (!API_KEY) throw new Error('Set API_KEY env var');
   const cacheBust = PROFILE === 'bypass';
-  // 65% nearby / 30% search / 5% regions — nearby dominates because "stations
-  // near me" is the typical user flow; regions is rare (UI loads it once).
+  // 65% nearby / 30% search / 5% localities — nearby dominates because "stations
+  // near me" is the typical user flow; localities is rare (UI loads it once).
   const r = Math.random();
   let endpoint;
   let url;
@@ -184,8 +184,8 @@ export default function () {
     endpoint = 'search';
     url = buildSearchUrl(cacheBust);
   } else {
-    endpoint = 'regions';
-    url = buildRegionsUrl(cacheBust);
+    endpoint = 'localities';
+    url = buildLocalitiesUrl(cacheBust);
   }
 
   const params = {
@@ -195,7 +195,7 @@ export default function () {
     tags: {
       profile: PROFILE,
       endpoint,
-      name: `/api/${endpoint === 'regions' ? 'regions' : `stations/${endpoint}`}`,
+      name: `/api/${endpoint === 'localities' ? 'localities' : `stations/${endpoint}`}`,
     },
   };
 
@@ -215,7 +215,7 @@ export default function () {
     'body shape ok': (r) => {
       try {
         const body = JSON.parse(r.body);
-        if (endpoint === 'regions') {
+        if (endpoint === 'localities') {
           return Array.isArray(body.regions) && body.regions.length === 6
             && Array.isArray(body.regions[0].counties)
             && Array.isArray(body.regions[0].localities)

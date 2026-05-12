@@ -1,5 +1,5 @@
 /**
- * GET /api/regions
+ * GET /api/localities
  *
  * Returns the regions + counties catalogue used by the `region` and `county`
  * filter parameters on /api/stations/search. Counties are nested under their
@@ -23,11 +23,11 @@ exports.handler = async function (event) {
   try {
     catalogue = getCatalogue();
   } catch (e) {
-    console.error('[regions] catalogue load failed:', e.message);
+    console.error('[localities] catalogue load failed:', e.message);
     return err(500, 'INTERNAL_ERROR', 'Failed to load data');
   }
 
-  console.log(`[regions] client=${clientId} regions=${catalogue.regions.length}`);
+  console.log(`[localities] client=${clientId} regions=${catalogue.regions.length}`);
 
   return ok(catalogue);
 };

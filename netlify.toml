@@ -19,8 +19,8 @@
   force = true
 
 [[redirects]]
-  from = "/api/regions"
-  to = "/.netlify/functions/api-regions"
+  from = "/api/localities"
+  to = "/.netlify/functions/api-localities"
   status = 200
   force = true
 
