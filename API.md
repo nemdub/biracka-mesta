@@ -1,7 +1,7 @@
 # Polling Stations API
 
 A small read-only JSON API over the Serbian polling-station dataset that powers
-this site. Two endpoints, both authorized via an API key issued to the caller.
+this site. Three endpoints, all authorized via an API key issued to the caller.
 
 - Base URL: `https://<your-netlify-deploy>` (e.g. the production domain or any
   branch / deploy preview URL).
@@ -228,6 +228,91 @@ curl -H 'X-Api-Key: k_live_...' \
 | Status | `code` | Cause |
 | --- | --- | --- |
 | `400` | `BAD_REQUEST` | `lat` or `lon` missing / not a number / out of range / outside the Serbia bounding box; `max_distance_m` not a positive integer; or unknown `region` / `county` id. |
+| `401` | `UNAUTHORIZED` | Missing or unknown `X-Api-Key`. |
+| `405` | `METHOD_NOT_ALLOWED` | Anything other than `GET`. |
+| `500` | `INTERNAL_ERROR` | Data file failed to load. |
+
+---
+
+## `GET /api/regions`
+
+Returns the regions + counties catalogue used by the `region` and `county`
+filter parameters on `/api/stations/search` and `/api/stations/nearby`. Counties
+are nested under their parent region, and each entry includes a `station_count`
+(mapped + unmapped combined). Both arrays are sorted by `name_lat` ascending.
+
+The same data is documented as a static table further down (see
+[Region & county catalogue](#region--county-catalogue)) — this endpoint is the
+runtime-queryable form, useful for populating a cascading picker without
+shipping the catalogue with your client.
+
+### Query parameters
+
+None.
+
+### Response
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "regions": [
+    {
+      "id": "beograd",
+      "name_cyr": "Београдски регион",
+      "name_lat": "Beogradski region",
+      "station_count": 1234,
+      "counties": [
+        {
+          "id": "grad-beograd",
+          "name_cyr": "Град Београд",
+          "name_lat": "Grad Beograd",
+          "station_count": 1234
+        }
+      ]
+    },
+    {
+      "id": "vojvodina",
+      "name_cyr": "Регион Војводине",
+      "name_lat": "Region Vojvodine",
+      "station_count": 2000,
+      "counties": [
+        {
+          "id": "severnobacki",
+          "name_cyr": "Севернобачки округ",
+          "name_lat": "Severnobački okrug",
+          "station_count": 250
+        },
+        {
+          "id": "srednjebanatski",
+          "name_cyr": "Средњебанатски округ",
+          "name_lat": "Srednjebanatski okrug",
+          "station_count": 220
+        }
+      ]
+    }
+  ]
+}
+```
+
+`station_count` values above are illustrative — real values come from the
+current build's dataset. A region or county with zero stations is still
+listed (it remains a valid filter id); the `ostalo` region exposes an empty
+`counties` array because its localities (diaspora, prisons, MoD) have no
+county.
+
+### Examples
+
+```bash
+curl -H 'X-Api-Key: k_live_...' \
+  'https://example.netlify.app/api/regions'
+```
+
+### Errors
+
+| Status | `code` | Cause |
+| --- | --- | --- |
 | `401` | `UNAUTHORIZED` | Missing or unknown `X-Api-Key`. |
 | `405` | `METHOD_NOT_ALLOWED` | Anything other than `GET`. |
 | `500` | `INTERNAL_ERROR` | Data file failed to load. |

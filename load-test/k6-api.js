@@ -11,7 +11,7 @@
 //   k6 run -e PROFILE=soak    load-test/k6-api.js
 //
 // Profiles:
-//   smoke  - 1 RPS for 1 min, sanity-check both endpoints.
+//   smoke  - 1 RPS for 1 min, sanity-check all endpoints.
 //   load   - 200 RPS for 10 min, expected election-day peak. Thresholds:
 //            p95 < 200 ms, error rate < 0.1%.
 //   stress - 1000 RPS for 5 min, 5x headroom, find the cliff.
@@ -163,12 +163,30 @@ function buildNearbyUrl(cacheBust) {
   return url;
 }
 
+function buildRegionsUrl(cacheBust) {
+  let url = `${BASE_URL}/api/regions`;
+  if (cacheBust) url += `?_cb=${Math.random().toString(36).slice(2, 10)}`;
+  return url;
+}
+
 export default function () {
   if (!API_KEY) throw new Error('Set API_KEY env var');
   const cacheBust = PROFILE === 'bypass';
-  // 70% nearby / 30% search — matches expected "stations near me" bias.
-  const isNearby = Math.random() < 0.7;
-  const url = isNearby ? buildNearbyUrl(cacheBust) : buildSearchUrl(cacheBust);
+  // 65% nearby / 30% search / 5% regions — nearby dominates because "stations
+  // near me" is the typical user flow; regions is rare (UI loads it once).
+  const r = Math.random();
+  let endpoint;
+  let url;
+  if (r < 0.65) {
+    endpoint = 'nearby';
+    url = buildNearbyUrl(cacheBust);
+  } else if (r < 0.95) {
+    endpoint = 'search';
+    url = buildSearchUrl(cacheBust);
+  } else {
+    endpoint = 'regions';
+    url = buildRegionsUrl(cacheBust);
+  }
 
   const params = {
     headers: { 'X-Api-Key': API_KEY },
@@ -176,8 +194,8 @@ export default function () {
     // k6 keys series by URL and explodes cardinality (200k+ series at load).
     tags: {
       profile: PROFILE,
-      endpoint: isNearby ? 'nearby' : 'search',
-      name: isNearby ? '/api/stations/nearby' : '/api/stations/search',
+      endpoint,
+      name: `/api/${endpoint === 'regions' ? 'regions' : `stations/${endpoint}`}`,
     },
   };
 
@@ -186,7 +204,7 @@ export default function () {
   errorRate.add(!okStatus);
   statusCounter.add(1, {
     profile: PROFILE,
-    endpoint: params.tags.endpoint,
+    endpoint,
     status: String(res.status),
   });
   check(res, {
@@ -194,9 +212,13 @@ export default function () {
     'json parses': (r) => {
       try { JSON.parse(r.body); return true; } catch (_) { return false; }
     },
-    'has results array': (r) => {
+    'body shape ok': (r) => {
       try {
         const body = JSON.parse(r.body);
+        if (endpoint === 'regions') {
+          return Array.isArray(body.regions) && body.regions.length === 6
+            && Array.isArray(body.regions[0].counties);
+        }
         return Array.isArray(body.results) && typeof body.count === 'number';
       } catch (_) { return false; }
     },
