@@ -49,11 +49,11 @@ setup_directories() {
 
 # ── API helpers ───────────────────────────────────────────────────────────────
 
-# Fetch all local communities for the election.
-# Populates global arrays: community_ids[], community_names[]
-fetch_communities() {
+# Fetch all local localities for the election.
+# Populates global arrays: locality_ids[], locality_names[]
+fetch_localities() {
     local url="${BASE_URL}/PoolingStation/GetJlsForElectionId"
-    local resp="${TMP_DIR}/communities_${ELECTION_ID}.json"
+    local resp="${TMP_DIR}/localities_${ELECTION_ID}.json"
 
     local http_code
     http_code=$(curl -s -w "%{http_code}" \
@@ -67,31 +67,31 @@ fetch_communities() {
         exit 1
     fi
 
-    community_ids=()
-    community_names=()
+    locality_ids=()
+    locality_names=()
 
-    while IFS= read -r line; do community_ids+=("$line");   done < <(jq -r '.[].Value' "$resp")
-    while IFS= read -r line; do community_names+=("$line"); done < <(jq -r '.[].Text'  "$resp")
+    while IFS= read -r line; do locality_ids+=("$line");   done < <(jq -r '.[].Value' "$resp")
+    while IFS= read -r line; do locality_names+=("$line"); done < <(jq -r '.[].Text'  "$resp")
 }
 
-# Fetch polling stations for one community.
+# Fetch polling stations for one locality.
 # Outputs a JSON array fragment suitable for embedding.
-# $1 = community_id
+# $1 = locality_id
 fetch_polling_stations_json() {
-    local community_id=$1
+    local locality_id=$1
     local url="${BASE_URL}/PoolingStation/GetPoolingStationForJlsId"
-    local resp="${TMP_DIR}/ps_${ELECTION_ID}_${community_id}.json"
+    local resp="${TMP_DIR}/ps_${ELECTION_ID}_${locality_id}.json"
 
     local http_code
     http_code=$(curl -s -w "%{http_code}" \
         -X POST \
-        -d "electionId=${ELECTION_ID}&jlsId=${community_id}" \
+        -d "electionId=${ELECTION_ID}&jlsId=${locality_id}" \
         -o "$resp" \
         "$url")
 
     if [[ "$http_code" != "200" ]]; then
         echo "[]"
-        warn "  Greška za opštinu ${community_id} (HTTP: $http_code)" >&2
+        warn "  Greška za opštinu ${locality_id} (HTTP: $http_code)" >&2
         return
     fi
 
@@ -125,34 +125,34 @@ main() {
     check_dependencies
     setup_directories
 
-    # ── Step 1: load communities ──────────────────────────────────────────────
+    # ── Step 1: load localities ──────────────────────────────────────────────
     info "Učitavam opštine/gradove..."
-    fetch_communities
+    fetch_localities
 
-    local total_communities=${#community_ids[@]}
-    if [[ $total_communities -eq 0 ]]; then
+    local total_localities=${#locality_ids[@]}
+    if [[ $total_localities -eq 0 ]]; then
         error "Nema dostupnih opština/gradova."
         exit 1
     fi
-    success "Učitano $total_communities opština/gradova"
+    success "Učitano $total_localities opština/gradova"
     echo ""
 
-    # ── Step 2: collect polling stations per community ────────────────────────
+    # ── Step 2: collect polling stations per locality ────────────────────────
     info "Učitavam biračka mesta za svaku opštinu/grad..."
     echo ""
 
     # Build a JSON object in a temp file using jq --null-input + streaming
-    # We accumulate each community block into a bash variable (safe for typical
+    # We accumulate each locality block into a bash variable (safe for typical
     # list sizes; Serbia has ~170 municipalities).
 
-    local communities_json="["
-    local first_community=1
+    local localities_json="["
+    local first_locality=1
 
-    for ((i = 0; i < total_communities; i++)); do
-        local cid="${community_ids[$i]}"
-        local cname="${community_names[$i]}"
+    for ((i = 0; i < total_localities; i++)); do
+        local cid="${locality_ids[$i]}"
+        local cname="${locality_names[$i]}"
 
-        printf "  [%d/%d] %s..." "$((i + 1))" "$total_communities" "$cname"
+        printf "  [%d/%d] %s..." "$((i + 1))" "$total_localities" "$cname"
 
         local ps_json
         ps_json=$(fetch_polling_stations_json "$cid")
@@ -162,48 +162,48 @@ main() {
 
         printf " %d biračkih mesta\n" "$ps_count"
 
-        local community_block
-        community_block=$(jq -n \
+        local locality_block
+        locality_block=$(jq -n \
             --arg  id      "$cid" \
             --arg  name    "$cname" \
             --argjson stations "$ps_json" \
             '{id: $id, name: $name, polling_stations: $stations}')
 
-        if [[ $first_community -eq 1 ]]; then
-            communities_json+="${community_block}"
-            first_community=0
+        if [[ $first_locality -eq 1 ]]; then
+            localities_json+="${locality_block}"
+            first_locality=0
         else
-            communities_json+=",${community_block}"
+            localities_json+=",${locality_block}"
         fi
 
         # Polite delay
         sleep 0.3
     done
 
-    communities_json+="]"
+    localities_json+="]"
 
     # ── Step 3: write final JSON ──────────────────────────────────────────────
     echo ""
     info "Zapisujem JSON fajl..."
 
-    local communities_tmp="${TMP_DIR}/communities_combined_${ELECTION_ID}.json"
-    printf '%s' "$communities_json" > "$communities_tmp"
+    local localities_tmp="${TMP_DIR}/localities_combined_${ELECTION_ID}.json"
+    printf '%s' "$localities_json" > "$localities_tmp"
 
     jq -n \
         --argjson election_id "$ELECTION_ID" \
-        --slurpfile communities "$communities_tmp" \
+        --slurpfile localities "$localities_tmp" \
         '{
             election: {id: $election_id},
-            communities: $communities[0]
+            localities: $localities[0]
         }' > "$OUTPUT_FILE"
 
     # Summary
     local total_stations
-    total_stations=$(jq '[.communities[].polling_stations | length] | add' "$OUTPUT_FILE")
+    total_stations=$(jq '[.localities[].polling_stations | length] | add' "$OUTPUT_FILE")
 
     echo ""
     success "Završeno!"
-    success "Opštine/gradovi:  $total_communities"
+    success "Opštine/gradovi:  $total_localities"
     success "Biračka mesta:    $total_stations"
     success "Izlazni fajl:     $OUTPUT_FILE"
     echo ""

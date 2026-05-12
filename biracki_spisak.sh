@@ -266,17 +266,17 @@ choose_elections() {
     success "Izabrani izbori: [${ELECTION_ID}] ${election_names[$MENU_SELECTED_INDEX]}"
 }
 
-# Step 2: Choose local community
-choose_local_community() {
+# Step 2: Choose local locality
+choose_local_locality() {
     print_step 2 "Odabir opštine / grada"
 
     info "Učitavam dostupne opštine/gradove..."
     echo ""
 
-    # Fetch local communities from API
+    # Fetch local localities from API
     local form_data="electionId=${ELECTION_ID}"
     local url="${BASE_URL}/PoolingStation/GetJlsForElectionId"
-    local response_file="${TMP_DIR}/communities_response_$(date +%Y%m%d_%H%M%S).json"
+    local response_file="${TMP_DIR}/localities_response_$(date +%Y%m%d_%H%M%S).json"
 
     local http_code
     http_code=$(curl -s -w "%{http_code}" \
@@ -291,18 +291,18 @@ choose_local_community() {
     fi
 
     # Parse JSON response into arrays using jq (bash 3.x compatible)
-    community_ids=()
-    community_names=()
+    locality_ids=()
+    locality_names=()
 
     while IFS= read -r line; do
-        community_ids+=("$line")
+        locality_ids+=("$line")
     done < <(jq -r '.[].Value' "$response_file")
 
     while IFS= read -r line; do
-        community_names+=("$line")
+        locality_names+=("$line")
     done < <(jq -r '.[].Text' "$response_file")
 
-    local total=${#community_ids[@]}
+    local total=${#locality_ids[@]}
 
     if [[ $total -eq 0 ]]; then
         error "Nema dostupnih opština/gradova za izabrane izbore."
@@ -314,14 +314,14 @@ choose_local_community() {
     info "Odaberite opštinu/grad:"
     echo ""
 
-    select_from_menu community_ids community_names
+    select_from_menu locality_ids locality_names
 
-    COMMUNITY_ID="${community_ids[$MENU_SELECTED_INDEX]}"
-    COMMUNITY_NAME="${community_names[$MENU_SELECTED_INDEX]}"
-    export COMMUNITY_ID COMMUNITY_NAME
+    LOCALITY_ID="${locality_ids[$MENU_SELECTED_INDEX]}"
+    LOCALITY_NAME="${locality_names[$MENU_SELECTED_INDEX]}"
+    export LOCALITY_ID LOCALITY_NAME
 
     echo ""
-    success "Izabrana opština/grad: [${COMMUNITY_ID}] ${COMMUNITY_NAME}"
+    success "Izabrana opština/grad: [${LOCALITY_ID}] ${LOCALITY_NAME}"
 }
 
 # Step 3: Get polling stations
@@ -331,7 +331,7 @@ get_polling_stations() {
     echo ""
 
     # Fetch polling stations from API
-    local form_data="electionId=${ELECTION_ID}&jlsId=${COMMUNITY_ID}"
+    local form_data="electionId=${ELECTION_ID}&jlsId=${LOCALITY_ID}"
     local url="${BASE_URL}/PoolingStation/GetPoolingStationForJlsId"
     local response_file="${TMP_DIR}/polling_stations_response_$(date +%Y%m%d_%H%M%S).json"
 
@@ -561,7 +561,7 @@ get_voters() {
 
     local total_stations=${#polling_station_ids[@]}
     local url="${BASE_URL}/ListaBiraca"
-    local combined_csv="${OUTPUT_DIR}/svi_biraci_${ELECTION_ID}_${COMMUNITY_ID}.csv"
+    local combined_csv="${OUTPUT_DIR}/svi_biraci_${ELECTION_ID}_${LOCALITY_ID}.csv"
     local station_id station_name
     local i
 
@@ -581,7 +581,7 @@ get_voters() {
 
         # Fetch voters from API
         local response_file="${TMP_DIR}/voters_html_${station_id}.html"
-        local station_csv="${OUTPUT_DIR}/biraci_${ELECTION_ID}_${COMMUNITY_ID}_${station_id}.csv"
+        local station_csv="${OUTPUT_DIR}/biraci_${ELECTION_ID}_${LOCALITY_ID}_${station_id}.csv"
 
         local http_code
         http_code=$(curl -s -w "%{http_code}" \
@@ -595,7 +595,7 @@ get_voters() {
             --data-urlencode "Document=${DOCUMENT_ID}" \
             --data-urlencode "TipDokumenta=0" \
             --data-urlencode "SelectedElectionId=${ELECTION_ID}" \
-            --data-urlencode "SelectedJlsId=${COMMUNITY_ID}" \
+            --data-urlencode "SelectedJlsId=${LOCALITY_ID}" \
             --data-urlencode "SelectedPollingStationsId=${station_id}" \
             -o "$response_file" \
             "${url}")
@@ -628,7 +628,7 @@ get_voters() {
     total_voters=$(($(wc -l < "$combined_csv") - 1))
     success "Završeno! Ukupno birača: $total_voters"
     success "Kombinovani fajl: $combined_csv"
-    success "Pojedinačni fajlovi: ${OUTPUT_DIR}/biraci_${ELECTION_ID}_${COMMUNITY_ID}_*.csv"
+    success "Pojedinačni fajlovi: ${OUTPUT_DIR}/biraci_${ELECTION_ID}_${LOCALITY_ID}_*.csv"
 }
 
 # Cleanup function
@@ -656,7 +656,7 @@ main() {
 
     # Main flow
     choose_elections
-    choose_local_community
+    choose_local_locality
     get_polling_stations
     get_user_parameters
     get_voters

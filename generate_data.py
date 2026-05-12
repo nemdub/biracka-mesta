@@ -26,8 +26,8 @@ def spread_overlapping(data, threshold=1e-4, radius=3e-5):
 
     # Collect geo dicts grouped by rounded position
     groups = defaultdict(list)
-    for community in data['communities']:
-        for station in community['polling_stations']:
+    for locality in data['localities']:
+        for station in locality['polling_stations']:
             geo = station.get('geo')
             if geo and geo.get('lat') is not None:
                 key = (round(geo['lat'] / threshold), round(geo['lon'] / threshold))
@@ -69,7 +69,7 @@ data = spread_overlapping(data)
 existing_parties = data.get('parties')
 already_indexed = isinstance(existing_parties, list) and all(
     isinstance(r.get('party'), int)
-    for c in data['communities']
+    for c in data['localities']
     for s in c['polling_stations']
     for r in s.get('voting', {}).get('results', [])
 )
@@ -77,8 +77,8 @@ already_indexed = isinstance(existing_parties, list) and all(
 if not already_indexed:
     parties = list(existing_parties) if isinstance(existing_parties, list) else []
     party_index = {name: i for i, name in enumerate(parties)}
-    for community in data['communities']:
-        for station in community['polling_stations']:
+    for locality in data['localities']:
+        for station in locality['polling_stations']:
             for result in station.get('voting', {}).get('results', []):
                 name = result['party']
                 if name not in party_index:
@@ -90,8 +90,8 @@ if not already_indexed:
 
 compact = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
 
-total    = sum(len(c['polling_stations']) for c in data['communities'])
-mapped   = sum(1 for c in data['communities'] for s in c['polling_stations'] if s.get('geo'))
+total    = sum(len(c['polling_stations']) for c in data['localities'])
+mapped   = sum(1 for c in data['localities'] for s in c['polling_stations'] if s.get('geo'))
 unmapped = total - mapped
 
 with open(dst, 'w', encoding='utf-8') as f:

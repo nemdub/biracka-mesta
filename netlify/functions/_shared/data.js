@@ -32,9 +32,7 @@ function loadStations() {
 
   const json = JSON.parse(raw);
   const flat = [];
-  // Source data uses "communities" — we expose them as "locality" externally
-  // because the unit may be an opština, a city, or a village.
-  for (const loc of json.communities ?? []) {
+  for (const loc of json.localities ?? []) {
     const localityId = loc.id;
     const localityName = loc.name;
     const localityNorm = normalize(localityName);

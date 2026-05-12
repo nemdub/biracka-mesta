@@ -1,5 +1,5 @@
 // Serbian Cyrillic -> Latin transliteration + diacritic stripping.
-// Used to normalize both query and station/community names into a single
+// Used to normalize both query and station/locality names into a single
 // canonical form so callers can search in either script with or without
 // diacritics.
 

@@ -160,7 +160,7 @@ count_voters_from_html() {
 # Fetch voter count for a single polling station; outputs the count or -1 on error
 fetch_voter_count() {
     local station_id=$1
-    local community_id=$2
+    local locality_id=$2
     local response_file="${TMP_DIR}/voters_${station_id}_$$.html"
 
     if ! init_session; then
@@ -182,7 +182,7 @@ fetch_voter_count() {
         --data-urlencode "Document=${DOCUMENT_ID}" \
         --data-urlencode "TipDokumenta=0" \
         --data-urlencode "SelectedElectionId=${ELECTION_ID}" \
-        --data-urlencode "SelectedJlsId=${community_id}" \
+        --data-urlencode "SelectedJlsId=${locality_id}" \
         --data-urlencode "SelectedPollingStationsId=${station_id}" \
         -o "$response_file" \
         "${BASE_URL}/ListaBiraca")
@@ -222,9 +222,9 @@ merge_counts_into_json() {
 
     local tmp_output="${INPUT_FILE}.tmp"
     jq --slurpfile counts "$COUNTS_FILE" '
-        .communities = [
-            .communities[] |
-            . as $community |
+        .localities = [
+            .localities[] |
+            . as $locality |
             .polling_stations = [
                 .polling_stations[] |
                 .voter_count = ($counts[0][.id] // null)
@@ -265,7 +265,7 @@ main() {
 
     # Count total stations
     local total_stations
-    total_stations=$(jq '[.communities[].polling_stations | length] | add' "$INPUT_FILE")
+    total_stations=$(jq '[.localities[].polling_stations | length] | add' "$INPUT_FILE")
     local processed=0
     local skipped=0
     local failed=0
@@ -273,22 +273,22 @@ main() {
     info "Ukupno biračkih mesta: $total_stations"
     echo ""
 
-    # Read all communities and stations
-    local community_count
-    community_count=$(jq '.communities | length' "$INPUT_FILE")
+    # Read all localities and stations
+    local locality_count
+    locality_count=$(jq '.localities | length' "$INPUT_FILE")
 
-    for ((ci=0; ci<community_count; ci++)); do
-        local community_id community_name station_count
-        community_id=$(jq -r ".communities[$ci].id" "$INPUT_FILE")
-        community_name=$(jq -r ".communities[$ci].name" "$INPUT_FILE")
-        station_count=$(jq ".communities[$ci].polling_stations | length" "$INPUT_FILE")
+    for ((ci=0; ci<locality_count; ci++)); do
+        local locality_id locality_name station_count
+        locality_id=$(jq -r ".localities[$ci].id" "$INPUT_FILE")
+        locality_name=$(jq -r ".localities[$ci].name" "$INPUT_FILE")
+        station_count=$(jq ".localities[$ci].polling_stations | length" "$INPUT_FILE")
 
-        echo -e "${BOLD}${BLUE}── ${community_name} [${community_id}] (${station_count} BM)${NC}"
+        echo -e "${BOLD}${BLUE}── ${locality_name} [${locality_id}] (${station_count} BM)${NC}"
 
         for ((si=0; si<station_count; si++)); do
             local station_id station_name
-            station_id=$(jq -r ".communities[$ci].polling_stations[$si].id" "$INPUT_FILE")
-            station_name=$(jq -r ".communities[$ci].polling_stations[$si].name" "$INPUT_FILE")
+            station_id=$(jq -r ".localities[$ci].polling_stations[$si].id" "$INPUT_FILE")
+            station_name=$(jq -r ".localities[$ci].polling_stations[$si].name" "$INPUT_FILE")
             processed=$((processed + 1))
 
             # Skip if already counted
@@ -305,7 +305,7 @@ main() {
                 "$processed" "$total_stations" "$station_id" "${station_name:0:60}"
 
             local count
-            count=$(fetch_voter_count "$station_id" "$community_id")
+            count=$(fetch_voter_count "$station_id" "$locality_id")
 
             if [[ "$count" -eq -1 ]]; then
                 echo -e " ${RED}GREŠKA${NC}"
