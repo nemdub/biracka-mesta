@@ -1,9 +1,12 @@
 /**
- * GET /api/stations/nearby?lat=<lat>&lon=<lon>&limit=<n>&max_distance_m=<m>
+ * GET /api/stations/nearby?lat=<lat>&lon=<lon>&limit=<n>&max_distance_m=<m>&region=<id>&county=<id>
  *
  * Returns the `limit` polling stations closest to (lat, lon), sorted by
  * ascending distance. Unmapped stations are excluded. If max_distance_m is
  * provided, stations farther away are dropped.
+ *
+ * Optional `region` and `county` query params pre-filter by canonical id
+ * (see data/serbia_admin.json for the catalogue).
  *
  * Coordinates must fall inside Serbia's bounding box; out-of-area calls are
  * rejected with 400 to bound origin work and avoid CDN cache pollution.
@@ -11,8 +14,19 @@
  * Requires X-Api-Key header matching one of the keys in API_KEYS env var.
  */
 const { authenticate } = require('./_shared/auth');
-const { loadStations } = require('./_shared/data');
+const { loadStations, getRegion, getCounty } = require('./_shared/data');
 const { ok, err } = require('./_shared/respond');
+
+function buildLocality(s) {
+  const region = getRegion(s.rId);
+  const county = getCounty(s.cId);
+  return {
+    id: s.localityId,
+    name: s.localityName,
+    region: region ? { id: region.id, name_cyr: region.name_cyr, name_lat: region.name_lat } : null,
+    county: county ? { id: county.id, name_cyr: county.name_cyr, name_lat: county.name_lat } : null,
+  };
+}
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
@@ -73,6 +87,15 @@ exports.handler = async function (event) {
     maxDistanceM = m;
   }
 
+  const regionFilter = (params.region || '').trim().toLowerCase() || null;
+  if (regionFilter && !getRegion(regionFilter)) {
+    return err(400, 'BAD_REQUEST', `Unknown region "${regionFilter}"`);
+  }
+  const countyFilter = (params.county || '').trim().toLowerCase() || null;
+  if (countyFilter && !getCounty(countyFilter)) {
+    return err(400, 'BAD_REQUEST', `Unknown county "${countyFilter}"`);
+  }
+
   let stations;
   try {
     stations = loadStations();
@@ -93,6 +116,8 @@ exports.handler = async function (event) {
   const scored = [];
   for (const s of stations) {
     if (s.lat == null) continue;
+    if (regionFilter && s.rId !== regionFilter) continue;
+    if (countyFilter && s.cId !== countyFilter) continue;
     if (maxDistanceM != null) {
       if (Math.abs(s.lat - lat) > dLatMax) continue;
       if (Math.abs(s.lon - lon) > dLonMax) continue;
@@ -108,12 +133,12 @@ exports.handler = async function (event) {
   const results = top.map(({ s, d }) => ({
     id: s.id,
     name: s.name,
-    locality: { id: s.localityId, name: s.localityName },
+    locality: buildLocality(s),
     geo: { lat: s.lat, lon: s.lon },
     distance_m: Math.round(d),
   }));
 
-  console.log(`[nearby] client=${clientId} lat=${lat} lon=${lon} results=${results.length}`);
+  console.log(`[nearby] client=${clientId} lat=${lat} lon=${lon} region=${regionFilter || '-'} county=${countyFilter || '-'} results=${results.length}`);
 
   return ok({ count: results.length, results });
 };
