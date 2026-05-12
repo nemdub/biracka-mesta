@@ -9,6 +9,19 @@ this site. Three endpoints, all authorized via an API key issued to the caller.
   coordinates) come back with `geo.lat = null` and `geo.lon = null`. `/nearby`
   excludes unmapped stations because no distance can be computed.
 
+## Contents
+
+- [`GET /api/stations/search`](#get-apistationssearch) — search polling stations by name, with optional region/county filters
+- [`GET /api/stations/nearby`](#get-apistationsnearby) — nearest mapped stations to a coordinate, sorted by distance
+- [`GET /api/localities`](#get-apilocalities) — regions → counties → localities catalogue with station counts
+- [Authentication](#authentication)
+- [Response fields](#response-fields)
+- [Region & county catalogue](#region--county-catalogue)
+- [Error response shape](#error-response-shape)
+- [Caching](#caching)
+- [CORS](#cors)
+- [Notes for implementers](#notes-for-implementers)
+
 ---
 
 ## Authentication
