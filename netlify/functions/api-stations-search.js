@@ -2,7 +2,7 @@
  * GET /api/stations/search?q=<query>&limit=<n>
  *
  * Substring match (script + diacritic insensitive) against polling station
- * name OR community name. Returns mapped stations only.
+ * name OR locality name. Returns mapped stations only.
  *
  * Requires X-Api-Key header matching one of the keys in API_KEYS env var.
  */
@@ -44,11 +44,11 @@ exports.handler = async function (event) {
 
   const results = [];
   for (const s of stations) {
-    if (s._norm.includes(normQ) || s._normCommunity.includes(normQ)) {
+    if (s._norm.includes(normQ) || s._normLocality.includes(normQ)) {
       results.push({
         id: s.id,
         name: s.name,
-        community: { id: s.communityId, name: s.communityName },
+        locality: { id: s.localityId, name: s.localityName },
         geo: { lat: s.lat, lon: s.lon },
       });
       if (results.length >= limit) break;
