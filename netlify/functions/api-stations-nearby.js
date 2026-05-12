@@ -1,5 +1,5 @@
 /**
- * GET /api/stations/nearby?lat=<lat>&lon=<lon>&limit=<n>&max_distance_m=<m>&region=<id>&county=<id>
+ * GET /api/stations/nearby?lat=<lat>&lon=<lon>&limit=<n>&offset=<n>&max_distance_m=<m>&region=<id>&county=<id>
  *
  * Returns the `limit` polling stations closest to (lat, lon), sorted by
  * ascending distance. Unmapped stations are excluded. If max_distance_m is
@@ -30,6 +30,7 @@ function buildLocality(s) {
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
+const MAX_OFFSET = 10000;
 const EARTH_RADIUS_M = 6371000;
 const DEG_TO_RAD = Math.PI / 180;
 
@@ -77,6 +78,10 @@ exports.handler = async function (event) {
   let limit = parseInt(params.limit, 10);
   if (!Number.isFinite(limit) || limit <= 0) limit = DEFAULT_LIMIT;
   if (limit > MAX_LIMIT) limit = MAX_LIMIT;
+
+  let offset = parseInt(params.offset, 10);
+  if (!Number.isFinite(offset) || offset < 0) offset = 0;
+  if (offset > MAX_OFFSET) offset = MAX_OFFSET;
 
   let maxDistanceM = null;
   if (params.max_distance_m != null && params.max_distance_m !== '') {
@@ -128,7 +133,7 @@ exports.handler = async function (event) {
   }
 
   scored.sort((a, b) => a.d - b.d);
-  const top = scored.slice(0, limit);
+  const top = scored.slice(offset, offset + limit);
 
   const results = top.map(({ s, d }) => ({
     id: s.id,
@@ -138,7 +143,7 @@ exports.handler = async function (event) {
     distance_m: Math.round(d),
   }));
 
-  console.log(`[nearby] client=${clientId} lat=${lat} lon=${lon} region=${regionFilter || '-'} county=${countyFilter || '-'} total=${scored.length} returned=${results.length}`);
+  console.log(`[nearby] client=${clientId} lat=${lat} lon=${lon} region=${regionFilter || '-'} county=${countyFilter || '-'} offset=${offset} total=${scored.length} returned=${results.length}`);
 
   return ok({ count: scored.length, results });
 };

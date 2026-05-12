@@ -61,6 +61,7 @@ normalized to the same canonical form as the indexed names before matching.
 | --- | --- | --- | --- | --- |
 | `q` | string | yes | — | Must be at least 2 and at most 64 characters after trimming; the post-normalization length must still be at least 2. URL-encode non-ASCII characters. |
 | `limit` | integer | no | `50` | Capped at `200`; larger values are silently clamped. |
+| `offset` | integer | no | `0` | Number of matches to skip before returning rows. Capped at `10000`; invalid or negative values silently default to `0`. |
 | `region` | string | no | — | Canonical region id (e.g. `beograd`, `vojvodina`). Pre-filters the result set. See the [region & county catalogue](#region--county-catalogue). |
 | `county` | string | no | — | Canonical county (okrug) id (e.g. `nisavski`, `grad-beograd`). Pre-filters the result set. See the [region & county catalogue](#region--county-catalogue). |
 
@@ -111,10 +112,10 @@ Content-Type: application/json
 ```
 
 `count` is the total number of matches under the current filters. `results`
-is truncated to `limit`; if `count > results.length`, narrow your query or
-raise `limit` to see more. There is no pagination. Results may include
-unmapped stations, which are returned with `geo.lat` and `geo.lon` set to
-`null`.
+is the page `[offset, offset + limit)` of those matches; combine `limit` with
+`offset` to page through `count` results in fixed-size chunks. When
+`offset >= count`, `results` is empty. Results may include unmapped stations,
+which are returned with `geo.lat` and `geo.lon` set to `null`.
 
 ### Examples
 
@@ -138,6 +139,10 @@ curl -H 'X-Api-Key: k_live_...' \
 # Filter by county: every station in Nišavski okrug
 curl -H 'X-Api-Key: k_live_...' \
   'https://example.netlify.app/api/stations/search?q=os&county=nisavski&limit=200'
+
+# Page through results 50 at a time (second page)
+curl -H 'X-Api-Key: k_live_...' \
+  'https://example.netlify.app/api/stations/search?q=skola&limit=50&offset=50'
 ```
 
 ### Errors
@@ -164,6 +169,7 @@ spherical Earth (radius 6 371 000 m).
 | `lat` | float | yes | — | WGS84 latitude, range `[-90, 90]`. Must also fall inside Serbia's bounding box (roughly `[42, 47]`); out-of-area calls return `400`. |
 | `lon` | float | yes | — | WGS84 longitude, range `[-180, 180]`. Must also fall inside Serbia's bounding box (roughly `[18, 23.5]`). |
 | `limit` | integer | no | `10` | Capped at `100`; larger values are silently clamped. |
+| `offset` | integer | no | `0` | Number of matches to skip before returning rows. Capped at `10000`; invalid or negative values silently default to `0`. |
 | `max_distance_m` | integer | no | — | If set, exclude stations farther than this many meters. Must be a positive integer. |
 | `region` | string | no | — | Canonical region id. Pre-filters to one region before sorting by distance. See the [region & county catalogue](#region--county-catalogue). |
 | `county` | string | no | — | Canonical county (okrug) id. Pre-filters to one county before sorting by distance. See the [region & county catalogue](#region--county-catalogue). |
@@ -209,9 +215,10 @@ Content-Type: application/json
 ```
 
 `count` is the total number of matches under the current filters (region,
-county, `max_distance_m`). `results` is truncated to `limit`; if
-`count > results.length`, raise `limit` or tighten filters to see more.
-There is no pagination.
+county, `max_distance_m`). `results` is the page `[offset, offset + limit)`
+of those matches, still distance-sorted; combine `limit` with `offset` to
+page through `count` results in fixed-size chunks. When `offset >= count`,
+`results` is empty.
 
 ### Examples
 
@@ -227,6 +234,10 @@ curl -H 'X-Api-Key: k_live_...' \
 # Nearest stations to a point, restricted to one okrug
 curl -H 'X-Api-Key: k_live_...' \
   'https://example.netlify.app/api/stations/nearby?lat=43.32&lon=21.90&county=nisavski&limit=10'
+
+# Page through the nearest stations 5 at a time (second page)
+curl -H 'X-Api-Key: k_live_...' \
+  'https://example.netlify.app/api/stations/nearby?lat=44.8176&lon=20.4569&limit=5&offset=5'
 ```
 
 ### Errors
