@@ -24,7 +24,7 @@
 
 import http from 'k6/http';
 import { check } from 'k6';
-import { Rate } from 'k6/metrics';
+import { Rate, Counter } from 'k6/metrics';
 import { randomItem } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8888';
@@ -142,6 +142,10 @@ export const options = PROFILES[PROFILE];
 // ---------- request building ----------
 
 const errorRate = new Rate('biracka_errors');
+// Per-status-code counter — lets a failing run tell you whether it's 5xx
+// (origin overload), 429 (rate-limited), or 0 (k6-side network error /
+// timeout) without re-running.
+const statusCounter = new Counter('biracka_status');
 
 function buildSearchUrl(cacheBust) {
   const q = randomItem(SEARCH_QUERIES);
@@ -162,19 +166,29 @@ function buildNearbyUrl(cacheBust) {
 export default function () {
   if (!API_KEY) throw new Error('Set API_KEY env var');
   const cacheBust = PROFILE === 'bypass';
-  const params = {
-    headers: { 'X-Api-Key': API_KEY },
-    tags: { profile: PROFILE },
-  };
-
   // 70% nearby / 30% search — matches expected "stations near me" bias.
   const isNearby = Math.random() < 0.7;
   const url = isNearby ? buildNearbyUrl(cacheBust) : buildSearchUrl(cacheBust);
-  params.tags.endpoint = isNearby ? 'nearby' : 'search';
+
+  const params = {
+    headers: { 'X-Api-Key': API_KEY },
+    // `name` collapses each endpoint to a single metric series — without it,
+    // k6 keys series by URL and explodes cardinality (200k+ series at load).
+    tags: {
+      profile: PROFILE,
+      endpoint: isNearby ? 'nearby' : 'search',
+      name: isNearby ? '/api/stations/nearby' : '/api/stations/search',
+    },
+  };
 
   const res = http.get(url, params);
   const okStatus = res.status === 200;
   errorRate.add(!okStatus);
+  statusCounter.add(1, {
+    profile: PROFILE,
+    endpoint: params.tags.endpoint,
+    status: String(res.status),
+  });
   check(res, {
     'status 200': (r) => r.status === 200,
     'json parses': (r) => {
