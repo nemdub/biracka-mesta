@@ -3,6 +3,27 @@
   command = "python3 generate_data.py polling_stations_86.json html/polling_stations_data.js && sed -i \"s/MAPS_API_KEY_PLACEHOLDER/$GOOGLE_MAPS_API_KEY/g\" html/polling_stations_map.html html/admin.html"
   functions = "netlify/functions"
 
+[functions]
+  node_bundler = "esbuild"
+
+[functions."api-stations-search"]
+  included_files = ["polling_stations_86.json"]
+
+[functions."api-stations-nearby"]
+  included_files = ["polling_stations_86.json"]
+
+[[redirects]]
+  from = "/api/stations/search"
+  to = "/.netlify/functions/api-stations-search"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/stations/nearby"
+  to = "/.netlify/functions/api-stations-nearby"
+  status = 200
+  force = true
+
 [[headers]]
   for = "/admin.html"
   [headers.values]
