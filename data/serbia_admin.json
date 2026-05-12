@@ -1,0 +1,216 @@
+{
+  "regions": {
+    "beograd": {
+      "id": "beograd",
+      "name_cyr": "Београдски регион",
+      "name_lat": "Beogradski region"
+    },
+    "vojvodina": {
+      "id": "vojvodina",
+      "name_cyr": "Регион Војводине",
+      "name_lat": "Region Vojvodine"
+    },
+    "sumadija-zapadna": {
+      "id": "sumadija-zapadna",
+      "name_cyr": "Регион Шумадије и Западне Србије",
+      "name_lat": "Region Šumadije i Zapadne Srbije"
+    },
+    "juzna-istocna": {
+      "id": "juzna-istocna",
+      "name_cyr": "Регион Јужне и Источне Србије",
+      "name_lat": "Region Južne i Istočne Srbije"
+    },
+    "kosovo-metohija": {
+      "id": "kosovo-metohija",
+      "name_cyr": "Регион Косова и Метохије",
+      "name_lat": "Region Kosova i Metohije"
+    },
+    "ostalo": {
+      "id": "ostalo",
+      "name_cyr": "Остало",
+      "name_lat": "Ostalo"
+    }
+  },
+  "counties": {
+    "grad-beograd": {
+      "id": "grad-beograd",
+      "name_cyr": "Град Београд",
+      "name_lat": "Grad Beograd",
+      "region_id": "beograd"
+    },
+    "severnobacki": {
+      "id": "severnobacki",
+      "name_cyr": "Севернобачки округ",
+      "name_lat": "Severnobački okrug",
+      "region_id": "vojvodina"
+    },
+    "srednjebanatski": {
+      "id": "srednjebanatski",
+      "name_cyr": "Средњебанатски округ",
+      "name_lat": "Srednjebanatski okrug",
+      "region_id": "vojvodina"
+    },
+    "severnobanatski": {
+      "id": "severnobanatski",
+      "name_cyr": "Севернобанатски округ",
+      "name_lat": "Severnobanatski okrug",
+      "region_id": "vojvodina"
+    },
+    "juznobanatski": {
+      "id": "juznobanatski",
+      "name_cyr": "Јужнобанатски округ",
+      "name_lat": "Južnobanatski okrug",
+      "region_id": "vojvodina"
+    },
+    "zapadnobacki": {
+      "id": "zapadnobacki",
+      "name_cyr": "Западнобачки округ",
+      "name_lat": "Zapadnobački okrug",
+      "region_id": "vojvodina"
+    },
+    "juznobacki": {
+      "id": "juznobacki",
+      "name_cyr": "Јужнобачки округ",
+      "name_lat": "Južnobački okrug",
+      "region_id": "vojvodina"
+    },
+    "sremski": {
+      "id": "sremski",
+      "name_cyr": "Сремски округ",
+      "name_lat": "Sremski okrug",
+      "region_id": "vojvodina"
+    },
+    "macvanski": {
+      "id": "macvanski",
+      "name_cyr": "Мачвански округ",
+      "name_lat": "Mačvanski okrug",
+      "region_id": "sumadija-zapadna"
+    },
+    "kolubarski": {
+      "id": "kolubarski",
+      "name_cyr": "Колубарски округ",
+      "name_lat": "Kolubarski okrug",
+      "region_id": "sumadija-zapadna"
+    },
+    "sumadijski": {
+      "id": "sumadijski",
+      "name_cyr": "Шумадијски округ",
+      "name_lat": "Šumadijski okrug",
+      "region_id": "sumadija-zapadna"
+    },
+    "pomoravski": {
+      "id": "pomoravski",
+      "name_cyr": "Поморавски округ",
+      "name_lat": "Pomoravski okrug",
+      "region_id": "sumadija-zapadna"
+    },
+    "zlatiborski": {
+      "id": "zlatiborski",
+      "name_cyr": "Златиборски округ",
+      "name_lat": "Zlatiborski okrug",
+      "region_id": "sumadija-zapadna"
+    },
+    "moravicki": {
+      "id": "moravicki",
+      "name_cyr": "Моравички округ",
+      "name_lat": "Moravički okrug",
+      "region_id": "sumadija-zapadna"
+    },
+    "raski": {
+      "id": "raski",
+      "name_cyr": "Рашки округ",
+      "name_lat": "Raški okrug",
+      "region_id": "sumadija-zapadna"
+    },
+    "rasinski": {
+      "id": "rasinski",
+      "name_cyr": "Расински округ",
+      "name_lat": "Rasinski okrug",
+      "region_id": "sumadija-zapadna"
+    },
+    "podunavski": {
+      "id": "podunavski",
+      "name_cyr": "Подунавски округ",
+      "name_lat": "Podunavski okrug",
+      "region_id": "juzna-istocna"
+    },
+    "branicevski": {
+      "id": "branicevski",
+      "name_cyr": "Браничевски округ",
+      "name_lat": "Braničevski okrug",
+      "region_id": "juzna-istocna"
+    },
+    "borski": {
+      "id": "borski",
+      "name_cyr": "Борски округ",
+      "name_lat": "Borski okrug",
+      "region_id": "juzna-istocna"
+    },
+    "zajecarski": {
+      "id": "zajecarski",
+      "name_cyr": "Зајечарски округ",
+      "name_lat": "Zaječarski okrug",
+      "region_id": "juzna-istocna"
+    },
+    "nisavski": {
+      "id": "nisavski",
+      "name_cyr": "Нишавски округ",
+      "name_lat": "Nišavski okrug",
+      "region_id": "juzna-istocna"
+    },
+    "toplicki": {
+      "id": "toplicki",
+      "name_cyr": "Топлички округ",
+      "name_lat": "Toplički okrug",
+      "region_id": "juzna-istocna"
+    },
+    "pirotski": {
+      "id": "pirotski",
+      "name_cyr": "Пиротски округ",
+      "name_lat": "Pirotski okrug",
+      "region_id": "juzna-istocna"
+    },
+    "jablanicki": {
+      "id": "jablanicki",
+      "name_cyr": "Јабланички округ",
+      "name_lat": "Jablanički okrug",
+      "region_id": "juzna-istocna"
+    },
+    "pcinjski": {
+      "id": "pcinjski",
+      "name_cyr": "Пчињски округ",
+      "name_lat": "Pčinjski okrug",
+      "region_id": "juzna-istocna"
+    },
+    "kosovski": {
+      "id": "kosovski",
+      "name_cyr": "Косовски округ",
+      "name_lat": "Kosovski okrug",
+      "region_id": "kosovo-metohija"
+    },
+    "pecki": {
+      "id": "pecki",
+      "name_cyr": "Пећки округ",
+      "name_lat": "Pećki okrug",
+      "region_id": "kosovo-metohija"
+    },
+    "prizrenski": {
+      "id": "prizrenski",
+      "name_cyr": "Призренски округ",
+      "name_lat": "Prizrenski okrug",
+      "region_id": "kosovo-metohija"
+    },
+    "kosovsko-mitrovacki": {
+      "id": "kosovsko-mitrovacki",
+      "name_cyr": "Косовско-митровачки округ",
+      "name_lat": "Kosovsko-mitrovački okrug",
+      "region_id": "kosovo-metohija"
+    },
+    "kosovsko-pomoravski": {
+      "id": "kosovsko-pomoravski",
+      "name_cyr": "Косовско-поморавски округ",
+      "name_lat": "Kosovsko-pomoravski okrug",
+      "region_id": "kosovo-metohija"
+    }
+  }
+}

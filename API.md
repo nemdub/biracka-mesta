@@ -48,9 +48,9 @@ There is no rate limiting in this version.
 ## `GET /api/stations/search`
 
 Searches polling stations by name. The query is matched as a substring against
-both the station name and the locality name (an opština, city, or village —
-whichever spatial unit the station sits in); matches in either field cause the
-station to be included.
+the station name, the locality name (an opština, city, or village — whichever
+spatial unit the station sits in), the region name, and the county (okrug)
+name. A hit in any of these four fields causes the station to be included.
 
 The match is **script- and diacritic-insensitive**: queries can be written in
 Latin or Cyrillic, with or without diacritics, in any case, and they are
@@ -62,6 +62,8 @@ normalized to the same canonical form as the indexed names before matching.
 | --- | --- | --- | --- | --- |
 | `q` | string | yes | — | Must be at least 2 and at most 64 characters after trimming; the post-normalization length must still be at least 2. URL-encode non-ASCII characters. |
 | `limit` | integer | no | `50` | Capped at `200`; larger values are silently clamped. |
+| `region` | string | no | — | Canonical region id (e.g. `beograd`, `vojvodina`). Pre-filters the result set. See the [region & county catalogue](#region--county-catalogue). |
+| `county` | string | no | — | Canonical county (okrug) id (e.g. `nisavski`, `grad-beograd`). Pre-filters the result set. See the [region & county catalogue](#region--county-catalogue). |
 
 ### Response
 
@@ -75,19 +77,34 @@ Content-Type: application/json
     {
       "id": "4246",
       "name": "1. \"Прецизни Лив\" - Ада, Молски пут 4",
-      "locality": { "id": "1", "name": "АДА" },
+      "locality": {
+        "id": "1",
+        "name": "АДА",
+        "region": { "id": "vojvodina", "name_cyr": "Регион Војводине", "name_lat": "Region Vojvodine" },
+        "county": { "id": "severnobanatski", "name_cyr": "Севернобанатски округ", "name_lat": "Severnobanatski okrug" }
+      },
       "geo": { "lat": 45.7853097, "lon": 20.1354901 }
     },
     {
       "id": "7022",
       "name": "2. Зграда I МЗ (велика сала) - Ада, Маршала Тита 43",
-      "locality": { "id": "1", "name": "АДА" },
+      "locality": {
+        "id": "1",
+        "name": "АДА",
+        "region": { "id": "vojvodina", "name_cyr": "Регион Војводине", "name_lat": "Region Vojvodine" },
+        "county": { "id": "severnobanatski", "name_cyr": "Севернобанатски округ", "name_lat": "Severnobanatski okrug" }
+      },
       "geo": { "lat": 45.7928104, "lon": 20.138238 }
     },
     {
       "id": "6598",
       "name": "21. ОСНОВНА ШКОЛА - НОВАЦИ ПОЉАНСКА БР.9",
-      "locality": { "id": "2", "name": "АЛЕКСАНДРОВАЦ" },
+      "locality": {
+        "id": "2",
+        "name": "АЛЕКСАНДРОВАЦ",
+        "region": { "id": "sumadija-zapadna", "name_cyr": "Регион Шумадије и Западне Србије", "name_lat": "Region Šumadije i Zapadne Srbije" },
+        "county": { "id": "rasinski", "name_cyr": "Расински округ", "name_lat": "Rasinski okrug" }
+      },
       "geo": { "lat": null, "lon": null }
     }
   ]
@@ -112,13 +129,21 @@ curl -H 'X-Api-Key: k_live_...' \
 # Match a locality (search hits locality name too)
 curl -H 'X-Api-Key: k_live_...' \
   'https://example.netlify.app/api/stations/search?q=beograd&limit=200'
+
+# Filter by region: "skola" stations in Vojvodina only
+curl -H 'X-Api-Key: k_live_...' \
+  'https://example.netlify.app/api/stations/search?q=skola&region=vojvodina'
+
+# Filter by county: every station in Nišavski okrug
+curl -H 'X-Api-Key: k_live_...' \
+  'https://example.netlify.app/api/stations/search?q=os&county=nisavski&limit=200'
 ```
 
 ### Errors
 
 | Status | `code` | Cause |
 | --- | --- | --- |
-| `400` | `BAD_REQUEST` | `q` missing, under 2 chars after normalization, or over 64 chars after trim. |
+| `400` | `BAD_REQUEST` | `q` missing, under 2 chars after normalization, or over 64 chars after trim; or unknown `region` / `county` id. |
 | `401` | `UNAUTHORIZED` | Missing or unknown `X-Api-Key`. |
 | `405` | `METHOD_NOT_ALLOWED` | Anything other than `GET`. |
 | `500` | `INTERNAL_ERROR` | Data file failed to load. |
@@ -139,6 +164,8 @@ spherical Earth (radius 6 371 000 m).
 | `lon` | float | yes | — | WGS84 longitude, range `[-180, 180]`. Must also fall inside Serbia's bounding box (roughly `[18, 23.5]`). |
 | `limit` | integer | no | `10` | Capped at `100`; larger values are silently clamped. |
 | `max_distance_m` | integer | no | — | If set, exclude stations farther than this many meters. Must be a positive integer. |
+| `region` | string | no | — | Canonical region id. Pre-filters to one region before sorting by distance. See the [region & county catalogue](#region--county-catalogue). |
+| `county` | string | no | — | Canonical county (okrug) id. Pre-filters to one county before sorting by distance. See the [region & county catalogue](#region--county-catalogue). |
 
 ### Response
 
@@ -155,23 +182,26 @@ Content-Type: application/json
     {
       "id": "4246",
       "name": "1. \"Прецизни Лив\" - Ада, Молски пут 4",
-      "locality": { "id": "1", "name": "АДА" },
+      "locality": {
+        "id": "1",
+        "name": "АДА",
+        "region": { "id": "vojvodina", "name_cyr": "Регион Војводине", "name_lat": "Region Vojvodine" },
+        "county": { "id": "severnobanatski", "name_cyr": "Севернобанатски округ", "name_lat": "Severnobanatski okrug" }
+      },
       "geo": { "lat": 45.7853097, "lon": 20.1354901 },
       "distance_m": 0
     },
     {
       "id": "7022",
       "name": "2. Зграда I МЗ (велика сала) - Ада, Маршала Тита 43",
-      "locality": { "id": "1", "name": "АДА" },
+      "locality": {
+        "id": "1",
+        "name": "АДА",
+        "region": { "id": "vojvodina", "name_cyr": "Регион Војводине", "name_lat": "Region Vojvodine" },
+        "county": { "id": "severnobanatski", "name_cyr": "Севернобанатски округ", "name_lat": "Severnobanatski okrug" }
+      },
       "geo": { "lat": 45.7928104, "lon": 20.138238 },
       "distance_m": 877
-    },
-    {
-      "id": "...",
-      "name": "...",
-      "locality": { "id": "1", "name": "АДА" },
-      "geo": { "lat": 45.79, "lon": 20.14 },
-      "distance_m": 1342
     }
   ]
 }
@@ -187,13 +217,17 @@ curl -H 'X-Api-Key: k_live_...' \
 # Stations within 500 m of Belgrade city centre, up to 50 of them
 curl -H 'X-Api-Key: k_live_...' \
   'https://example.netlify.app/api/stations/nearby?lat=44.8176&lon=20.4569&limit=50&max_distance_m=500'
+
+# Nearest stations to a point, restricted to one okrug
+curl -H 'X-Api-Key: k_live_...' \
+  'https://example.netlify.app/api/stations/nearby?lat=43.32&lon=21.90&county=nisavski&limit=10'
 ```
 
 ### Errors
 
 | Status | `code` | Cause |
 | --- | --- | --- |
-| `400` | `BAD_REQUEST` | `lat` or `lon` missing / not a number / out of range / outside the Serbia bounding box; or `max_distance_m` not a positive integer. |
+| `400` | `BAD_REQUEST` | `lat` or `lon` missing / not a number / out of range / outside the Serbia bounding box; `max_distance_m` not a positive integer; or unknown `region` / `county` id. |
 | `401` | `UNAUTHORIZED` | Missing or unknown `X-Api-Key`. |
 | `405` | `METHOD_NOT_ALLOWED` | Anything other than `GET`. |
 | `500` | `INTERNAL_ERROR` | Data file failed to load. |
@@ -207,12 +241,74 @@ curl -H 'X-Api-Key: k_live_...' \
 | `id` | string | Stable polling-station id from the source dataset. |
 | `name` | string | Cyrillic station name as published, typically including the street address. |
 | `locality.id` | string | Numeric locality id, as a string. The locality is the spatial unit that contains the polling station — typically an opština (municipality), but may also be a city or a village. |
-| `locality.name` | string | Cyrillic locality name (e.g. `АДА`, `БЕОГРАД`). |
+| `locality.name` | string | Cyrillic locality name (e.g. `АДА`, `БЕОГРАД-ВРАЧАР`). |
+| `locality.region` | object \| null | Region (NSTJ-1) the locality belongs to. Object with `id`, `name_cyr`, `name_lat`. See the [catalogue](#region--county-catalogue). `null` is never returned in practice — every locality has a region, including the catch-all `ostalo` bucket for diaspora / prisons / Kosovo. |
+| `locality.county` | object \| null | County (okrug) the locality belongs to. Same shape as `region`. **`null`** for localities in the `ostalo` region (diaspora, prisons, Kosovo). |
 | `geo.lat` | number \| null | WGS84 latitude. `null` for unmapped stations in `/search` results; never `null` on `/nearby`. |
 | `geo.lon` | number \| null | WGS84 longitude. Same nullability rules as `geo.lat`. |
 | `distance_m` | integer | Distance from the query point in meters, rounded. **Only on `/nearby`.** |
 
 The full election results for each station are *not* exposed by this API.
+
+---
+
+## Region & county catalogue
+
+Every locality is tagged with one **region** (NSTJ-1 statistical region) and
+typically one **county** (okrug). Both ids are stable kebab-case Latin slugs
+suitable for URLs and faceted-search params. The authoritative source is
+[`data/serbia_admin.json`](data/serbia_admin.json).
+
+### Regions
+
+| `id` | Cyrillic | Latin |
+| --- | --- | --- |
+| `beograd` | Београдски регион | Beogradski region |
+| `vojvodina` | Регион Војводине | Region Vojvodine |
+| `sumadija-zapadna` | Регион Шумадије и Западне Србије | Region Šumadije i Zapadne Srbije |
+| `juzna-istocna` | Регион Јужне и Источне Србије | Region Južne i Istočne Srbije |
+| `kosovo-metohija` | Регион Косова и Метохије | Region Kosova i Metohije |
+| `ostalo` | Остало | Ostalo |
+
+The `ostalo` bucket carries localities outside the five geographic regions:
+diaspora (`ИНОСТРАНСТВО`), prisons (`УПРАВА ЗА ИЗВРШЕЊЕ ЗАВОДСКИХ САНКЦИЈА`),
+and the Ministry of Defence voters' roll (`МИНИСТАРСТВО ОДБРАНЕ`). Their
+`locality.county` is `null`.
+
+### Counties (okruzi)
+
+| `id` | Cyrillic | Latin | Region |
+| --- | --- | --- | --- |
+| `grad-beograd` | Град Београд | Grad Beograd | `beograd` |
+| `severnobacki` | Севернобачки округ | Severnobački okrug | `vojvodina` |
+| `srednjebanatski` | Средњебанатски округ | Srednjebanatski okrug | `vojvodina` |
+| `severnobanatski` | Севернобанатски округ | Severnobanatski okrug | `vojvodina` |
+| `juznobanatski` | Јужнобанатски округ | Južnobanatski okrug | `vojvodina` |
+| `zapadnobacki` | Западнобачки округ | Zapadnobački okrug | `vojvodina` |
+| `juznobacki` | Јужнобачки округ | Južnobački okrug | `vojvodina` |
+| `sremski` | Сремски округ | Sremski okrug | `vojvodina` |
+| `macvanski` | Мачвански округ | Mačvanski okrug | `sumadija-zapadna` |
+| `kolubarski` | Колубарски округ | Kolubarski okrug | `sumadija-zapadna` |
+| `sumadijski` | Шумадијски округ | Šumadijski okrug | `sumadija-zapadna` |
+| `pomoravski` | Поморавски округ | Pomoravski okrug | `sumadija-zapadna` |
+| `zlatiborski` | Златиборски округ | Zlatiborski okrug | `sumadija-zapadna` |
+| `moravicki` | Моравички округ | Moravički okrug | `sumadija-zapadna` |
+| `raski` | Рашки округ | Raški okrug | `sumadija-zapadna` |
+| `rasinski` | Расински округ | Rasinski okrug | `sumadija-zapadna` |
+| `podunavski` | Подунавски округ | Podunavski okrug | `juzna-istocna` |
+| `branicevski` | Браничевски округ | Braničevski okrug | `juzna-istocna` |
+| `borski` | Борски округ | Borski okrug | `juzna-istocna` |
+| `zajecarski` | Зајечарски округ | Zaječarski okrug | `juzna-istocna` |
+| `nisavski` | Нишавски округ | Nišavski okrug | `juzna-istocna` |
+| `toplicki` | Топлички округ | Toplički okrug | `juzna-istocna` |
+| `pirotski` | Пиротски округ | Pirotski okrug | `juzna-istocna` |
+| `jablanicki` | Јабланички округ | Jablanički okrug | `juzna-istocna` |
+| `pcinjski` | Пчињски округ | Pčinjski okrug | `juzna-istocna` |
+| `kosovski` | Косовски округ | Kosovski okrug | `kosovo-metohija` |
+| `pecki` | Пећки округ | Pećki okrug | `kosovo-metohija` |
+| `prizrenski` | Призренски округ | Prizrenski okrug | `kosovo-metohija` |
+| `kosovsko-mitrovacki` | Косовско-митровачки округ | Kosovsko-mitrovački okrug | `kosovo-metohija` |
+| `kosovsko-pomoravski` | Косовско-поморавски округ | Kosovsko-pomoravski okrug | `kosovo-metohija` |
 
 ---
 
