@@ -73,22 +73,25 @@ exports.handler = async function (event) {
     return err(500, 'INTERNAL_ERROR', 'Failed to load data');
   }
 
+  let total = 0;
   const results = [];
   for (const s of stations) {
     if (regionFilter && s.rId !== regionFilter) continue;
     if (countyFilter && s.cId !== countyFilter) continue;
     if (s.n.includes(normQ) || s.nl.includes(normQ) || s.nr.includes(normQ) || s.nc.includes(normQ)) {
-      results.push({
-        id: s.id,
-        name: s.name,
-        locality: buildLocality(s),
-        geo: { lat: s.lat, lon: s.lon },
-      });
-      if (results.length >= limit) break;
+      total++;
+      if (results.length < limit) {
+        results.push({
+          id: s.id,
+          name: s.name,
+          locality: buildLocality(s),
+          geo: { lat: s.lat, lon: s.lon },
+        });
+      }
     }
   }
 
-  console.log(`[search] client=${clientId} q="${rawQ}" region=${regionFilter || '-'} county=${countyFilter || '-'} matches=${results.length}`);
+  console.log(`[search] client=${clientId} q="${rawQ}" region=${regionFilter || '-'} county=${countyFilter || '-'} total=${total} returned=${results.length}`);
 
-  return ok({ count: results.length, results });
+  return ok({ count: total, results });
 };

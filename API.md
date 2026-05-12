@@ -111,9 +111,11 @@ Content-Type: application/json
 }
 ```
 
-`count` always equals `results.length`. There is no pagination — narrow your
-query if you hit the `limit`. Results may include unmapped stations, which
-are returned with `geo.lat` and `geo.lon` set to `null`.
+`count` is the total number of matches under the current filters. `results`
+is truncated to `limit`; if `count > results.length`, narrow your query or
+raise `limit` to see more. There is no pagination. Results may include
+unmapped stations, which are returned with `geo.lat` and `geo.lon` set to
+`null`.
 
 ### Examples
 
@@ -206,6 +208,11 @@ Content-Type: application/json
   ]
 }
 ```
+
+`count` is the total number of matches under the current filters (region,
+county, `max_distance_m`). `results` is truncated to `limit`; if
+`count > results.length`, raise `limit` or tighten filters to see more.
+There is no pagination.
 
 ### Examples
 

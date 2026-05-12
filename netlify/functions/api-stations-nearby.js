@@ -138,7 +138,7 @@ exports.handler = async function (event) {
     distance_m: Math.round(d),
   }));
 
-  console.log(`[nearby] client=${clientId} lat=${lat} lon=${lon} region=${regionFilter || '-'} county=${countyFilter || '-'} results=${results.length}`);
+  console.log(`[nearby] client=${clientId} lat=${lat} lon=${lon} region=${regionFilter || '-'} county=${countyFilter || '-'} total=${scored.length} returned=${results.length}`);
 
-  return ok({ count: results.length, results });
+  return ok({ count: scored.length, results });
 };
