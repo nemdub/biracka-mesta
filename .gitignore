@@ -2,3 +2,4 @@ output/tmp
 kucni_broj.csv
 output
 polling stations
+netlify/functions/_shared/api_stations_data.js

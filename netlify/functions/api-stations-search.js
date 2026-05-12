@@ -2,7 +2,8 @@
  * GET /api/stations/search?q=<query>&limit=<n>
  *
  * Substring match (script + diacritic insensitive) against polling station
- * name OR locality name. Returns mapped stations only.
+ * name OR locality name. Returns both mapped and unmapped stations; unmapped
+ * stations have geo.lat = null and geo.lon = null.
  *
  * Requires X-Api-Key header matching one of the keys in API_KEYS env var.
  */
@@ -14,8 +15,12 @@ const { ok, err } = require('./_shared/respond');
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MIN_QUERY_LEN = 2;
+const MAX_QUERY_LEN = 64;
 
 exports.handler = async function (event) {
+  if (event.httpMethod === 'OPTIONS') {
+    return err(405, 'METHOD_NOT_ALLOWED', 'Method not allowed');
+  }
   if (event.httpMethod !== 'GET') {
     return err(405, 'METHOD_NOT_ALLOWED', 'Method not allowed');
   }
@@ -25,6 +30,9 @@ exports.handler = async function (event) {
 
   const params = event.queryStringParameters || {};
   const rawQ = (params.q || '').trim();
+  if (rawQ.length > MAX_QUERY_LEN) {
+    return err(400, 'BAD_REQUEST', `Query "q" must be at most ${MAX_QUERY_LEN} characters`);
+  }
   const normQ = normalize(rawQ);
   if (normQ.length < MIN_QUERY_LEN) {
     return err(400, 'BAD_REQUEST', `Query "q" must be at least ${MIN_QUERY_LEN} characters after normalization`);
@@ -44,7 +52,7 @@ exports.handler = async function (event) {
 
   const results = [];
   for (const s of stations) {
-    if (s._norm.includes(normQ) || s._normLocality.includes(normQ)) {
+    if (s.n.includes(normQ) || s.nl.includes(normQ)) {
       results.push({
         id: s.id,
         name: s.name,
