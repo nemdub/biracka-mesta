@@ -49,7 +49,7 @@ setup_directories() {
 
 # ── API helpers ───────────────────────────────────────────────────────────────
 
-# Fetch all local localities for the election.
+# Fetch all localities for the election.
 # Populates global arrays: locality_ids[], locality_names[]
 fetch_localities() {
     local url="${BASE_URL}/PoolingStation/GetJlsForElectionId"
