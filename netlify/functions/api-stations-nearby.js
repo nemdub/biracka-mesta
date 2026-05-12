@@ -5,6 +5,9 @@
  * ascending distance. Unmapped stations are excluded. If max_distance_m is
  * provided, stations farther away are dropped.
  *
+ * Coordinates must fall inside Serbia's bounding box; out-of-area calls are
+ * rejected with 400 to bound origin work and avoid CDN cache pollution.
+ *
  * Requires X-Api-Key header matching one of the keys in API_KEYS env var.
  */
 const { authenticate } = require('./_shared/auth');
@@ -15,6 +18,12 @@ const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
 const EARTH_RADIUS_M = 6371000;
 const DEG_TO_RAD = Math.PI / 180;
+
+// Serbia bounding box (slightly padded). Inputs outside this box are rejected.
+const SERBIA_LAT_MIN = 42.0;
+const SERBIA_LAT_MAX = 47.0;
+const SERBIA_LON_MIN = 18.0;
+const SERBIA_LON_MAX = 23.5;
 
 function haversineMeters(lat1, lon1, lat2, lon2) {
   const dLat = (lat2 - lat1) * DEG_TO_RAD;
@@ -27,6 +36,9 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
 }
 
 exports.handler = async function (event) {
+  if (event.httpMethod === 'OPTIONS') {
+    return err(405, 'METHOD_NOT_ALLOWED', 'Method not allowed');
+  }
   if (event.httpMethod !== 'GET') {
     return err(405, 'METHOD_NOT_ALLOWED', 'Method not allowed');
   }
@@ -42,6 +54,10 @@ exports.handler = async function (event) {
   }
   if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
     return err(400, 'BAD_REQUEST', 'Param "lon" must be a number in [-180, 180]');
+  }
+  if (lat < SERBIA_LAT_MIN || lat > SERBIA_LAT_MAX ||
+      lon < SERBIA_LON_MIN || lon > SERBIA_LON_MAX) {
+    return err(400, 'BAD_REQUEST', 'Coordinate is outside the service area');
   }
 
   let limit = parseInt(params.limit, 10);
@@ -76,6 +92,7 @@ exports.handler = async function (event) {
 
   const scored = [];
   for (const s of stations) {
+    if (s.lat == null) continue;
     if (maxDistanceM != null) {
       if (Math.abs(s.lat - lat) > dLatMax) continue;
       if (Math.abs(s.lon - lon) > dLonMax) continue;
