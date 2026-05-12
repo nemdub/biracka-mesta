@@ -3,11 +3,15 @@
 Generate the slim API data module bundled by the Netlify Functions.
 
 Emits a JavaScript file (not JSON) exporting:
-  * stations:  flat array, one entry per polling station, with short field
-               names ("n", "nl", "nr", "nc" for pre-normalized search keys
-               and "rId" / "cId" for region/county refs)
-  * regions:   id -> { id, name_cyr, name_lat } catalogue
-  * counties:  id -> { id, name_cyr, name_lat, region_id } catalogue
+  * stations:    flat array, one entry per polling station. Each row has
+                 "name_cyr" / "name_lat" (display) and "n", "nl", "nr", "nc"
+                 (pre-normalized search keys), plus "localityId", "rId", "cId"
+                 references into the catalogues below.
+  * regions:     id -> { id, name_cyr, name_lat } catalogue
+  * counties:    id -> { id, name_cyr, name_lat, region_id } catalogue
+  * localities:  id -> { id, name_cyr, name_lat, region_id, county_id }
+                 catalogue (handlers look up locality display names here
+                 rather than denormalizing them onto every station row).
 
 V8 lazy-parses bundled JS and caches compiled forms across container
 invocations, so cold-start cost is much lower than JSON.parse on a bundled
@@ -119,9 +123,9 @@ def main(src: str, dst: str) -> None:
                 unmapped += 1
             rows.append({
                 'id': st['id'],
-                'name': st['name'],
+                'name_cyr': st['name'],
+                'name_lat': cyr_to_lat(st['name']),
                 'localityId': locality_id,
-                'localityName': locality_name,
                 'rId': region_id,
                 'cId': county_id,
                 'lat': lat,

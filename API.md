@@ -75,10 +75,12 @@ Content-Type: application/json
   "results": [
     {
       "id": "4246",
-      "name": "1. \"Прецизни Лив\" - Ада, Молски пут 4",
+      "name_cyr": "1. \"Прецизни Лив\" - Ада, Молски пут 4",
+      "name_lat": "1. \"Precizni Liv\" - Ada, Molski put 4",
       "locality": {
         "id": "1",
-        "name": "АДА",
+        "name_cyr": "АДА",
+        "name_lat": "Ada",
         "region": { "id": "vojvodina", "name_cyr": "Регион Војводине", "name_lat": "Region Vojvodine" },
         "county": { "id": "severnobanatski", "name_cyr": "Севернобанатски округ", "name_lat": "Severnobanatski okrug" }
       },
@@ -86,10 +88,12 @@ Content-Type: application/json
     },
     {
       "id": "7022",
-      "name": "2. Зграда I МЗ (велика сала) - Ада, Маршала Тита 43",
+      "name_cyr": "2. Зграда I МЗ (велика сала) - Ада, Маршала Тита 43",
+      "name_lat": "2. Zgrada I MZ (velika sala) - Ada, Maršala Tita 43",
       "locality": {
         "id": "1",
-        "name": "АДА",
+        "name_cyr": "АДА",
+        "name_lat": "Ada",
         "region": { "id": "vojvodina", "name_cyr": "Регион Војводине", "name_lat": "Region Vojvodine" },
         "county": { "id": "severnobanatski", "name_cyr": "Севернобанатски округ", "name_lat": "Severnobanatski okrug" }
       },
@@ -97,10 +101,12 @@ Content-Type: application/json
     },
     {
       "id": "6598",
-      "name": "21. ОСНОВНА ШКОЛА - НОВАЦИ ПОЉАНСКА БР.9",
+      "name_cyr": "21. ОСНОВНА ШКОЛА - НОВАЦИ ПОЉАНСКА БР.9",
+      "name_lat": "21. OSNOVNA ŠKOLA - NOVACI POLjANSKA BR.9",
       "locality": {
         "id": "2",
-        "name": "АЛЕКСАНДРОВАЦ",
+        "name_cyr": "АЛЕКСАНДРОВАЦ",
+        "name_lat": "Aleksandrovac",
         "region": { "id": "sumadija-zapadna", "name_cyr": "Регион Шумадије и Западне Србије", "name_lat": "Region Šumadije i Zapadne Srbije" },
         "county": { "id": "rasinski", "name_cyr": "Расински округ", "name_lat": "Rasinski okrug" }
       },
@@ -182,10 +188,12 @@ Content-Type: application/json
   "results": [
     {
       "id": "4246",
-      "name": "1. \"Прецизни Лив\" - Ада, Молски пут 4",
+      "name_cyr": "1. \"Прецизни Лив\" - Ада, Молски пут 4",
+      "name_lat": "1. \"Precizni Liv\" - Ada, Molski put 4",
       "locality": {
         "id": "1",
-        "name": "АДА",
+        "name_cyr": "АДА",
+        "name_lat": "Ada",
         "region": { "id": "vojvodina", "name_cyr": "Регион Војводине", "name_lat": "Region Vojvodine" },
         "county": { "id": "severnobanatski", "name_cyr": "Севернобанатски округ", "name_lat": "Severnobanatski okrug" }
       },
@@ -194,10 +202,12 @@ Content-Type: application/json
     },
     {
       "id": "7022",
-      "name": "2. Зграда I МЗ (велика сала) - Ада, Маршала Тита 43",
+      "name_cyr": "2. Зграда I МЗ (велика сала) - Ада, Маршала Тита 43",
+      "name_lat": "2. Zgrada I MZ (velika sala) - Ada, Maršala Tita 43",
       "locality": {
         "id": "1",
-        "name": "АДА",
+        "name_cyr": "АДА",
+        "name_lat": "Ada",
         "region": { "id": "vojvodina", "name_cyr": "Регион Војводине", "name_lat": "Region Vojvodine" },
         "county": { "id": "severnobanatski", "name_cyr": "Севернобанатски округ", "name_lat": "Severnobanatski okrug" }
       },
@@ -331,9 +341,11 @@ curl -H 'X-Api-Key: k_live_...' \
 | Field | Type | Description |
 | --- | --- | --- |
 | `id` | string | Stable polling-station id from the source dataset. |
-| `name` | string | Cyrillic station name as published, typically including the street address. |
+| `name_cyr` | string | Cyrillic station name as published, typically including the street address. |
+| `name_lat` | string | Latin transliteration of `name_cyr` (sr-Cyrl → sr-Latn, case preserved). Sufficient for display; for an exact form, use `name_cyr`. |
 | `locality.id` | string | Numeric locality id, as a string. The locality is the spatial unit that contains the polling station — typically an opština (municipality), but may also be a city or a village. |
-| `locality.name` | string | Cyrillic locality name (e.g. `АДА`, `БЕОГРАД-ВРАЧАР`). |
+| `locality.name_cyr` | string | Cyrillic locality name (e.g. `АДА`, `БЕОГРАД-ВРАЧАР`). |
+| `locality.name_lat` | string | Best-effort title-case Latin transliteration of `locality.name_cyr` (e.g. `Ada`, `Beograd-Vračar`). Sufficient for sorting and display; when an exact form matters, use `locality.name_cyr`. |
 | `locality.region` | object \| null | Region (NSTJ-1) the locality belongs to. Object with `id`, `name_cyr`, `name_lat`. See the [catalogue](#region--county-catalogue). `null` is never returned in practice — every locality has a region, including the catch-all `ostalo` bucket for diaspora / prisons / Kosovo. |
 | `locality.county` | object \| null | County (okrug) the locality belongs to. Same shape as `region`. **`null`** for localities in the `ostalo` region (diaspora, prisons, Kosovo). |
 | `geo.lat` | number \| null | WGS84 latitude. `null` for unmapped stations in `/search` results; never `null` on `/nearby`. |
