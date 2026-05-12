@@ -1,7 +1,9 @@
 // The slim API data module is built by scripts/generate_api_data.py during
 // the Netlify build (see netlify.toml). It exports:
-//   * stations:   flat array of polling-station rows with short-key search
-//                 fields (n, nl, nr, nc) and rId/cId references.
+//   * stations:   flat array of polling-station rows. Each row carries
+//                 name_cyr / name_lat for display, short-key search fields
+//                 (n, nl, nr, nc), and localityId/rId/cId references into
+//                 the catalogues below.
 //   * regions:    id -> { id, name_cyr, name_lat } catalogue.
 //   * counties:   id -> { id, name_cyr, name_lat, region_id } catalogue.
 //   * localities: id -> { id, name_cyr, name_lat, region_id, county_id }

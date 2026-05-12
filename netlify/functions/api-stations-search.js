@@ -11,7 +11,7 @@
  * Requires X-Api-Key header matching one of the keys in API_KEYS env var.
  */
 const { authenticate } = require('./_shared/auth');
-const { loadStations, getRegion, getCounty } = require('./_shared/data');
+const { loadStations, getRegion, getCounty, getLocality } = require('./_shared/data');
 const { normalize } = require('./_shared/translit');
 const { ok, err } = require('./_shared/respond');
 
@@ -22,11 +22,13 @@ const MIN_QUERY_LEN = 2;
 const MAX_QUERY_LEN = 64;
 
 function buildLocality(s) {
+  const locality = getLocality(s.localityId);
   const region = getRegion(s.rId);
   const county = getCounty(s.cId);
   return {
     id: s.localityId,
-    name: s.localityName,
+    name_cyr: locality ? locality.name_cyr : null,
+    name_lat: locality ? locality.name_lat : null,
     region: region ? { id: region.id, name_cyr: region.name_cyr, name_lat: region.name_lat } : null,
     county: county ? { id: county.id, name_cyr: county.name_cyr, name_lat: county.name_lat } : null,
   };
@@ -87,7 +89,8 @@ exports.handler = async function (event) {
       if (total >= offset && results.length < limit) {
         results.push({
           id: s.id,
-          name: s.name,
+          name_cyr: s.name_cyr,
+          name_lat: s.name_lat,
           locality: buildLocality(s),
           geo: { lat: s.lat, lon: s.lon },
         });
