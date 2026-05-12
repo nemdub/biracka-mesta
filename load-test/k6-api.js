@@ -217,7 +217,9 @@ export default function () {
         const body = JSON.parse(r.body);
         if (endpoint === 'regions') {
           return Array.isArray(body.regions) && body.regions.length === 6
-            && Array.isArray(body.regions[0].counties);
+            && Array.isArray(body.regions[0].counties)
+            && Array.isArray(body.regions[0].localities)
+            && body.regions.some((r) => r.counties.some((c) => Array.isArray(c.localities) && c.localities.length > 0));
         }
         return Array.isArray(body.results) && typeof body.count === 'number';
       } catch (_) { return false; }

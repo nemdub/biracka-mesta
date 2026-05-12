@@ -49,6 +49,27 @@ def cyr_to_lat(s: str) -> str:
     return ''.join(CYR_TO_LAT.get(ch, ch) for ch in s)
 
 
+def title_case_words(s: str) -> str:
+    # Lowercase everything, then capitalize the first letter of each
+    # whitespace- or hyphen-separated word. Locality source names are all
+    # uppercase Cyrillic and overwhelmingly place names ("Bajina Bašta",
+    # "Beograd-Stari Grad"), so per-word capitalization is the right
+    # convention. cyr_to_lat preserves case, and digraphs like "Lj"/"Nj"/"Dž"
+    # collapse to lowercase "lj"/"nj"/"dž" mid-word after this pass.
+    s = s.lower()
+    out = []
+    cap_next = True
+    for ch in s:
+        if cap_next and ch.isalpha():
+            out.append(ch.upper())
+            cap_next = False
+        else:
+            out.append(ch)
+            if ch.isspace() or ch == '-':
+                cap_next = True
+    return ''.join(out)
+
+
 def normalize(s: str) -> str:
     if not s:
         return ''
@@ -64,6 +85,7 @@ def main(src: str, dst: str) -> None:
         admin = json.load(f)
 
     rows = []
+    localities_catalogue = {}
     total = 0
     mapped = 0
     unmapped = 0
@@ -75,6 +97,13 @@ def main(src: str, dst: str) -> None:
         county = loc.get('county') or {}
         region_id = region.get('id', '')
         county_id = (county.get('id', '') if county else '')
+        localities_catalogue[locality_id] = {
+            'id': locality_id,
+            'name_cyr': locality_name,
+            'name_lat': title_case_words(cyr_to_lat(locality_name)),
+            'region_id': region_id,
+            'county_id': county_id,
+        }
         region_norm = normalize(region.get('name_lat', '')) if region else ''
         county_norm = normalize(county.get('name_lat', '')) if county else ''
         for st in loc.get('polling_stations', []):
@@ -107,6 +136,7 @@ def main(src: str, dst: str) -> None:
         'stations': rows,
         'regions': admin['regions'],
         'counties': admin['counties'],
+        'localities': localities_catalogue,
     }
     encoded = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
 
