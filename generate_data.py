@@ -64,22 +64,28 @@ with open(src, 'r', encoding='utf-8') as f:
 data = spread_overlapping(data)
 
 # ── Optimise: replace party-name strings with integer indices ─────────────────
-parties = []
-party_index = {}
-for community in data['communities']:
-    for station in community['polling_stations']:
-        for result in station.get('voting', {}).get('results', []):
-            name = result['party']
-            if name not in party_index:
-                party_index[name] = len(parties)
-                parties.append(name)
+# Source data may already be indexed (result['party'] is int + top-level
+# 'parties' list); otherwise build the index from name strings.
+existing_parties = data.get('parties')
+already_indexed = isinstance(existing_parties, list) and all(
+    isinstance(r.get('party'), int)
+    for c in data['communities']
+    for s in c['polling_stations']
+    for r in s.get('voting', {}).get('results', [])
+)
 
-for community in data['communities']:
-    for station in community['polling_stations']:
-        for result in station.get('voting', {}).get('results', []):
-            result['party'] = party_index[result['party']]
-
-data['parties'] = parties
+if not already_indexed:
+    parties = list(existing_parties) if isinstance(existing_parties, list) else []
+    party_index = {name: i for i, name in enumerate(parties)}
+    for community in data['communities']:
+        for station in community['polling_stations']:
+            for result in station.get('voting', {}).get('results', []):
+                name = result['party']
+                if name not in party_index:
+                    party_index[name] = len(parties)
+                    parties.append(name)
+                result['party'] = party_index[name]
+    data['parties'] = parties
 # ─────────────────────────────────────────────────────────────────────────────
 
 compact = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
