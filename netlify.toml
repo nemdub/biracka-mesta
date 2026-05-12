@@ -18,6 +18,12 @@
   status = 200
   force = true
 
+[[redirects]]
+  from = "/api/regions"
+  to = "/.netlify/functions/api-regions"
+  status = 200
+  force = true
+
 [[headers]]
   for = "/admin.html"
   [headers.values]
