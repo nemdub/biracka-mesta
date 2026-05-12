@@ -243,15 +243,16 @@ curl -H 'X-Api-Key: k_live_...' \
 
 ## `GET /api/regions`
 
-Returns the regions + counties catalogue used by the `region` and `county`
-filter parameters on `/api/stations/search` and `/api/stations/nearby`. Counties
-are nested under their parent region, and each entry includes a `station_count`
-(mapped + unmapped combined). Both arrays are sorted by `name_lat` ascending.
+Returns the regions, counties, and localities catalogue used by the `region` and
+`county` filter parameters on `/api/stations/search` and `/api/stations/nearby`.
+Counties are nested under their parent region, and localities under their
+parent county; each entry includes a `station_count` (mapped + unmapped
+combined). All arrays are sorted by `name_lat` ascending.
 
-The same data is documented as a static table further down (see
+The same region/county data is documented as a static table further down (see
 [Region & county catalogue](#region--county-catalogue)) — this endpoint is the
-runtime-queryable form, useful for populating a cascading picker without
-shipping the catalogue with your client.
+runtime-queryable form, useful for populating a cascading region → county →
+locality picker without shipping the catalogue with your client.
 
 ### Query parameters
 
@@ -269,45 +270,45 @@ Content-Type: application/json
       "id": "beograd",
       "name_cyr": "Београдски регион",
       "name_lat": "Beogradski region",
-      "station_count": 1234,
+      "station_count": 1180,
+      "localities": [],
       "counties": [
         {
           "id": "grad-beograd",
           "name_cyr": "Град Београд",
           "name_lat": "Grad Beograd",
-          "station_count": 1234
+          "station_count": 1180,
+          "localities": [
+            { "id": "19", "name_cyr": "БЕОГРАД-БАРАЈЕВО", "name_lat": "Beograd-Barajevo", "station_count": 28 },
+            { "id": "20", "name_cyr": "БЕОГРАД-ЧУКАРИЦА", "name_lat": "Beograd-Čukarica", "station_count": 107 }
+          ]
         }
       ]
     },
     {
-      "id": "vojvodina",
-      "name_cyr": "Регион Војводине",
-      "name_lat": "Region Vojvodine",
-      "station_count": 2000,
-      "counties": [
-        {
-          "id": "severnobacki",
-          "name_cyr": "Севернобачки округ",
-          "name_lat": "Severnobački okrug",
-          "station_count": 250
-        },
-        {
-          "id": "srednjebanatski",
-          "name_cyr": "Средњебанатски округ",
-          "name_lat": "Srednjebanatski okrug",
-          "station_count": 220
-        }
-      ]
+      "id": "ostalo",
+      "name_cyr": "Остало",
+      "name_lat": "Ostalo",
+      "station_count": 146,
+      "localities": [
+        { "id": "198", "name_cyr": "ИНОСТРАНСТВО",                          "name_lat": "Inostranstvo",                          "station_count": 81 },
+        { "id": "202", "name_cyr": "МИНИСТАРСТВО ОДБРАНЕ",                   "name_lat": "Ministarstvo Odbrane",                  "station_count": 36 },
+        { "id": "199", "name_cyr": "УПРАВА ЗА ИЗВРШЕЊЕ ЗАВОДСКИХ САНКЦИЈА",  "name_lat": "Uprava Za Izvršenje Zavodskih Sankcija", "station_count": 29 }
+      ],
+      "counties": []
     }
   ]
 }
 ```
 
-`station_count` values above are illustrative — real values come from the
-current build's dataset. A region or county with zero stations is still
-listed (it remains a valid filter id); the `ostalo` region exposes an empty
+A region, county, or locality with zero stations is still listed (it remains a
+valid filter id / picker target). The `ostalo` region exposes an empty
 `counties` array because its localities (diaspora, prisons, MoD) have no
-county.
+county — those localities are surfaced on `region.localities` instead. For
+every other region, `region.localities` is `[]`; all of its localities live
+under one of the nested counties. Locality `name_lat` is a best-effort
+title-case transliteration from the Cyrillic source (sufficient for sorting
+and display); when an exact form matters, use `name_cyr`.
 
 ### Examples
 
