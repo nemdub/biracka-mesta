@@ -241,7 +241,7 @@ curl -H 'X-Api-Key: k_live_...' \
 
 ---
 
-## `GET /api/regions`
+## `GET /api/localities`
 
 Returns the regions, counties, and localities catalogue used by the `region` and
 `county` filter parameters on `/api/stations/search` and `/api/stations/nearby`.
@@ -314,7 +314,7 @@ and display); when an exact form matters, use `name_cyr`.
 
 ```bash
 curl -H 'X-Api-Key: k_live_...' \
-  'https://example.netlify.app/api/regions'
+  'https://example.netlify.app/api/localities'
 ```
 
 ### Errors
