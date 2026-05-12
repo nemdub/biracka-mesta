@@ -1,5 +1,5 @@
 /**
- * GET /api/stations/search?q=<query>&limit=<n>&region=<id>&county=<id>
+ * GET /api/stations/search?q=<query>&limit=<n>&offset=<n>&region=<id>&county=<id>
  *
  * Substring match (script + diacritic insensitive) against polling station
  * name, locality name, region name, or county name. Returns both mapped and
@@ -17,6 +17,7 @@ const { ok, err } = require('./_shared/respond');
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+const MAX_OFFSET = 10000;
 const MIN_QUERY_LEN = 2;
 const MAX_QUERY_LEN = 64;
 
@@ -65,6 +66,10 @@ exports.handler = async function (event) {
   if (!Number.isFinite(limit) || limit <= 0) limit = DEFAULT_LIMIT;
   if (limit > MAX_LIMIT) limit = MAX_LIMIT;
 
+  let offset = parseInt(params.offset, 10);
+  if (!Number.isFinite(offset) || offset < 0) offset = 0;
+  if (offset > MAX_OFFSET) offset = MAX_OFFSET;
+
   let stations;
   try {
     stations = loadStations();
@@ -79,8 +84,7 @@ exports.handler = async function (event) {
     if (regionFilter && s.rId !== regionFilter) continue;
     if (countyFilter && s.cId !== countyFilter) continue;
     if (s.n.includes(normQ) || s.nl.includes(normQ) || s.nr.includes(normQ) || s.nc.includes(normQ)) {
-      total++;
-      if (results.length < limit) {
+      if (total >= offset && results.length < limit) {
         results.push({
           id: s.id,
           name: s.name,
@@ -88,10 +92,11 @@ exports.handler = async function (event) {
           geo: { lat: s.lat, lon: s.lon },
         });
       }
+      total++;
     }
   }
 
-  console.log(`[search] client=${clientId} q="${rawQ}" region=${regionFilter || '-'} county=${countyFilter || '-'} total=${total} returned=${results.length}`);
+  console.log(`[search] client=${clientId} q="${rawQ}" region=${regionFilter || '-'} county=${countyFilter || '-'} offset=${offset} total=${total} returned=${results.length}`);
 
   return ok({ count: total, results });
 };
