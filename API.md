@@ -3,8 +3,7 @@
 A small read-only JSON API over the Serbian polling-station dataset that powers
 this site. Three endpoints, all authorized via an API key issued to the caller.
 
-- Base URL: `https://biracka-mesta.netlify.app` (e.g. the production domain or any
-  branch / deploy preview URL).
+- Base URL: `https://biracka-mesta.netlify.app`
 - All endpoints return `Content-Type: application/json; charset=utf-8`.
 - `/search` returns every matching station; unmapped stations (those without
   coordinates) come back with `geo.lat = null` and `geo.lon = null`. `/nearby`
