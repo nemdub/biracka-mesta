@@ -261,7 +261,7 @@ def load_index(csv_path: Path) -> tuple[dict, dict, dict]:
 # ---------------------------------------------------------------------------
 # Coordinate lookup
 # ---------------------------------------------------------------------------
-def _municipality_keys(community_name: str, index: dict) -> list[str]:
+def _municipality_keys(locality_name: str, index: dict) -> list[str]:
     """
     Priority-ordered list of municipality keys to try.
 
@@ -271,7 +271,7 @@ def _municipality_keys(community_name: str, index: dict) -> list[str]:
       'БЕОГРАД-ПАЛИЛУЛА'   → also try 'палилула (београд)'  (CSV uses parenthetical)
       'НИШ-ПАЛИЛУЛА'       → also try 'палилула (ниш)'
     """
-    primary = norm(community_name)
+    primary = norm(locality_name)
     candidates: list[str] = []
 
     if primary in index:
@@ -324,7 +324,7 @@ def lookup(
     index: dict,
     centroids: dict,
     latin_index: dict,
-    community_name: str,
+    locality_name: str,
     settlement_name: str | None,
     street: str,
     number: str | None,
@@ -338,7 +338,7 @@ def lookup(
     number_norm = norm_number(number) if number else None
     settlement_norm = norm(settlement_name) if settlement_name else None
 
-    muni_keys = _municipality_keys(community_name, index)
+    muni_keys = _municipality_keys(locality_name, index)
 
     for muni in muni_keys:
         settlements_by_muni = index[muni]
@@ -418,10 +418,10 @@ def main() -> None:
 
     total = matched = unmatched = approx = 0
 
-    for community in data["communities"]:
-        community_name = community["name"]
+    for locality in data["localities"]:
+        locality_name = locality["name"]
 
-        for station in community["polling_stations"]:
+        for station in locality["polling_stations"]:
             total += 1
             name = station.get("name", "")
 
@@ -432,7 +432,7 @@ def main() -> None:
                 unmatched += 1
                 continue
 
-            result = lookup(index, centroids, latin_index, community_name, settlement, street, number)
+            result = lookup(index, centroids, latin_index, locality_name, settlement, street, number)
             if result:
                 coords, is_approx = result
                 lat, lon = utm34n_to_latlon(*coords)
@@ -445,7 +445,7 @@ def main() -> None:
                 station["geo"] = None
                 unmatched += 1
                 print(
-                    f"  [NO MATCH] {community_name} / {settlement} | {street} {number or ''}",
+                    f"  [NO MATCH] {locality_name} / {settlement} | {street} {number or ''}",
                     flush=True,
                 )
 

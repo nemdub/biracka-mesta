@@ -181,10 +181,10 @@ def main() -> None:
 
     total_null = matched = skipped_embassy = already_cached = errors = 0
 
-    for community in data["communities"]:
-        community_name = community["name"]
+    for locality in data["localities"]:
+        locality_name = locality["name"]
 
-        for station in community["polling_stations"]:
+        for station in locality["polling_stations"]:
             if station.get("geo") is not None:
                 continue  # already geocoded
 
@@ -200,7 +200,7 @@ def main() -> None:
             if not street:
                 continue
 
-            url = _build_url(street, number, community_name)
+            url = _build_url(street, number, locality_name)
 
             # Use cache if available
             if url in cache:
@@ -228,7 +228,7 @@ def main() -> None:
                     matched += 1
                 else:
                     print(
-                        f"  [OUT OF BOUNDS] {community_name} | {street} {number or ''}: "
+                        f"  [OUT OF BOUNDS] {locality_name} | {street} {number or ''}: "
                         f"lat={lat}, lon={lon}",
                         flush=True,
                     )

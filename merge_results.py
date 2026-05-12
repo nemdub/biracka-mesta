@@ -54,7 +54,7 @@ def normalize_key(s: str) -> str:
     s = strip_diacritics(s.lower())
     return re.sub(r"\s+", " ", s).strip()
 
-# ── Filename → community key ──────────────────────────────────────────────────
+# ── Filename → locality key ──────────────────────────────────────────────────
 # Ordered longest-first so longer prefixes are matched before shorter ones.
 _REGION_PREFIXES = [
     ("Beogradski_region_", "beograd"),
@@ -67,9 +67,9 @@ _REGION_PREFIXES = [
 ]
 _SUB_PREFIXES = ["Gradska_opština_", "Grad_"]
 
-def filename_to_community_key(fname: str) -> str:
+def filename_to_locality_key(fname: str) -> str:
     """
-    Derive a normalized community key from a metadata CSV filename.
+    Derive a normalized locality key from a metadata CSV filename.
 
     Examples:
       metadata_2_341140_Region_Vojvodine_Ada.csv              → 'ada'
@@ -106,9 +106,9 @@ def filename_to_community_key(fname: str) -> str:
         return normalize_key(city_prefix + " " + name)
     return normalize_key(name)
 
-def json_community_to_key(cyrillic_name: str) -> str:
+def json_locality_to_key(cyrillic_name: str) -> str:
     """
-    Convert a JSON community name (Cyrillic) to a normalized key.
+    Convert a JSON locality name (Cyrillic) to a normalized key.
     E.g. 'БЕОГРАД-ВОЖДОВАЦ' → 'beograd vozdovac'
          'БОР - ГРАД'        → 'bor'   (strips trailing '- GRAD' with spaces)
          'СТАРИ ГРАД'        → 'stari grad'  (no spaces around hyphen → kept)
@@ -126,13 +126,13 @@ def parse_int(s: str) -> int:
         return 0
     return int(re.sub(r"[^\d]", "", s))
 
-# ── Step 1a: Parse metadata CSVs → turnout + community-station map ────────────
+# ── Step 1a: Parse metadata CSVs → turnout + locality-station map ────────────
 turnout_lookup: dict = {}           # csv_station_id → {registered,voted,...}
-community_station_map: dict = {}    # (community_key, station_number) → csv_station_id
+locality_station_map: dict = {}    # (locality_key, station_number) → csv_station_id
 
 print("Parsing metadata CSVs...", file=sys.stderr)
 for csv_file in sorted(OUTPUT.glob("metadata_*.csv")):
-    community_key = filename_to_community_key(csv_file.name)
+    locality_key = filename_to_locality_key(csv_file.name)
     try:
         with open(csv_file, encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -161,13 +161,13 @@ for csv_file in sorted(OUTPUT.glob("metadata_*.csv")):
                     "valid": valid,
                     "turnout_pct": turnout_pct,
                 }
-                community_station_map[(community_key, station_number)] = csv_id
+                locality_station_map[(locality_key, station_number)] = csv_id
     except Exception as e:
         print(f"  Error reading {csv_file.name}: {e}", file=sys.stderr)
 
 print(
     f"  {len(turnout_lookup)} station turnout records, "
-    f"{len(community_station_map)} community-station mappings",
+    f"{len(locality_station_map)} locality-station mappings",
     file=sys.stderr,
 )
 
@@ -208,29 +208,29 @@ with open(JSON_IN, encoding="utf-8") as f:
 matched = unmatched = no_turnout = 0
 unmatched_names: list = []
 
-for community in data["communities"]:
-    comm_key = json_community_to_key(community["name"])
-    for station in community["polling_stations"]:
+for locality in data["localities"]:
+    loc_key = json_locality_to_key(locality["name"])
+    for station in locality["polling_stations"]:
         station_number = station.get("number")
         if station_number is None:
             unmatched += 1
             continue
 
         # Primary lookup
-        csv_id = community_station_map.get((comm_key, station_number))
+        csv_id = locality_station_map.get((loc_key, station_number))
 
-        # Fallback: if community key has a city prefix ("beograd vozdovac"),
-        # also try just the last word/phrase as the community key ("vozdovac").
+        # Fallback: if locality key has a city prefix ("beograd vozdovac"),
+        # also try just the last word/phrase as the locality key ("vozdovac").
         # Handles cases like JSON "ПОЖАРЕВАЦ-КОСТОЛАЦ" → try "kostolac".
         if csv_id is None:
-            parts = comm_key.split(" ", 1)
+            parts = loc_key.split(" ", 1)
             if len(parts) == 2:
-                csv_id = community_station_map.get((parts[1], station_number))
+                csv_id = locality_station_map.get((parts[1], station_number))
 
         if csv_id is None:
             unmatched += 1
             unmatched_names.append(
-                f"  {community['name']!r} (key={comm_key!r}, station={station_number})"
+                f"  {locality['name']!r} (key={loc_key!r}, station={station_number})"
             )
             continue
 

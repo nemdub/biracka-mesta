@@ -108,19 +108,19 @@
     }
     #search:focus { border-color: #cba6f7; }
     #search::placeholder { color: #6c7086; }
-    #community-list {
+    #locality-list {
       flex: 1; overflow-y: auto;
       padding: 6px 0;
     }
-    .comm-item {
+    .loc-item {
       padding: 6px 16px; cursor: pointer; border-left: 3px solid transparent;
       transition: background 0.15s;
     }
-    .comm-item:hover, .comm-item.active {
+    .loc-item:hover, .loc-item.active {
       background: #313244; border-left-color: #cba6f7;
     }
-    .comm-name { font-weight: 600; font-size: 13px; }
-    .comm-sub  { font-size: 11px; color: #6c7086; margin-top: 1px; }
+    .loc-name { font-weight: 600; font-size: 13px; }
+    .loc-sub  { font-size: 11px; color: #6c7086; margin-top: 1px; }
     #map { flex: 1; }
     /* custom marker pins — all sizing/color is set inline */
     .map-pin { transition: transform 0.1s; }
@@ -228,7 +228,7 @@
     .station-result-item:last-child { border-bottom: none; }
     .station-result-item:hover, .station-result-item.selected { background: #313244; }
     .station-result-item .sri-name { color: #cdd6f4; }
-    .station-result-item .sri-comm { color: #6c7086; font-size: 11px; margin-top: 1px; }
+    .station-result-item .sri-loc { color: #6c7086; font-size: 11px; margin-top: 1px; }
     #station-picker-hint { font-size: 11px; color: #f9e2af; margin-top: 6px; display: none; }
     #picker-section { display: none; }
 
@@ -291,7 +291,7 @@
     <input id="search" type="text" data-i18n-ph="Претражи по општини или бирачком месту…"
            placeholder="Претражи по општини или бирачком месту…" autocomplete="off">
   </div>
-  <div id="community-list"></div>
+  <div id="locality-list"></div>
 </div>
 
 <div id="map"></div>
@@ -327,9 +327,9 @@
         <p style="display:none"><label>Не попуњавати: <input name="bot-field"></label></p>
         <input type="hidden" name="form-name" value="station-corrections">
         <input type="hidden" name="station-id" id="field-station-id">
-        <input type="hidden" name="community-id" id="field-community-id">
+        <input type="hidden" name="locality-id" id="field-locality-id">
         <input type="hidden" name="station-name" id="field-station-name">
-        <input type="hidden" name="community-name" id="field-community-name">
+        <input type="hidden" name="locality-name" id="field-locality-name">
         <input type="hidden" name="current-lat" id="field-current-lat">
         <input type="hidden" name="current-lon" id="field-current-lon">
         <input type="hidden" name="new-lat" id="field-new-lat">
@@ -350,7 +350,7 @@
           <label data-i18n="Бирачко место">Бирачко место</label>
           <input type="text" id="display-station-name" readonly style="opacity:0.6;cursor:default;">
           <label data-i18n="Општина">Општина</label>
-          <input type="text" id="display-community-name" readonly style="opacity:0.6;cursor:default;">
+          <input type="text" id="display-locality-name" readonly style="opacity:0.6;cursor:default;">
         </div>
 
         <!-- Map picker — hidden until station is selected (in "new" mode) or always shown (in "correct" mode) -->
@@ -422,9 +422,9 @@ const PARTIES = DATA.parties || [];
 
 // ── build flat index ──────────────────────────────────────────────────────────
 const allStations = [];
-for (const comm of DATA.communities) {
-  for (const st of comm.polling_stations) {
-    allStations.push({ ...st, communityName: comm.name, communityId: comm.id });
+for (const loc of DATA.localities) {
+  for (const st of loc.polling_stations) {
+    allStations.push({ ...st, localityName: loc.name, localityId: loc.id });
   }
 }
 const mapped   = allStations.filter(s => s.geo);
@@ -529,7 +529,7 @@ function rebuildResultHeatmaps() {
   const q = activeQuery;
   const base = mapped.filter(s => s.voting?.results?.length && (!q
     || t(s.name).toLowerCase().includes(q)
-    || t(s.communityName).toLowerCase().includes(q)));
+    || t(s.localityName).toLowerCase().includes(q)));
   const pt = s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: 1 });
   heatmapRed.setData(base.filter(s => incPctFor(s) > 55).map(pt));
   heatmapYellow.setData(base.filter(s => { const p = incPctFor(s); return p >= 45 && p <= 55; }).map(pt));
@@ -585,32 +585,32 @@ function makeMarkerPin(voterCount, approx) {
   return div;
 }
 
-// ── sidebar community list ────────────────────────────────────────────────────
-const commList = document.getElementById('community-list');
+// ── sidebar locality list ────────────────────────────────────────────────────
+const locList = document.getElementById('locality-list');
 
-function buildCommunityList(filter) {
-  commList.innerHTML = '';
+function buildLocalityList(filter) {
+  locList.innerHTML = '';
   const q = (filter || '').toLowerCase().trim();
-  for (const comm of DATA.communities) {
+  for (const loc of DATA.localities) {
     // match against whichever script is currently active
-    const commDisp  = t(comm.name);
-    const nameMatch = commDisp.toLowerCase().includes(q);
-    const stations  = comm.polling_stations.filter(s =>
+    const locDisp   = t(loc.name);
+    const nameMatch = locDisp.toLowerCase().includes(q);
+    const stations  = loc.polling_stations.filter(s =>
       !q || nameMatch || t(s.name).toLowerCase().includes(q)
     );
     if (q && stations.length === 0) continue;
 
     const mappedCount = stations.filter(s => s.geo).length;
     const div = document.createElement('div');
-    div.className = 'comm-item';
-    div.dataset.communityId = comm.id;
-    div.innerHTML = `<div class="comm-name">${commDisp}</div>
-      <div class="comm-sub">${stations.length} ${t('места')} · ${mappedCount} ${t('на мапи')}</div>`;
-    div.addEventListener('click', () => flyToCommunit(comm.id));
-    commList.appendChild(div);
+    div.className = 'loc-item';
+    div.dataset.localityId = loc.id;
+    div.innerHTML = `<div class="loc-name">${locDisp}</div>
+      <div class="loc-sub">${stations.length} ${t('места')} · ${mappedCount} ${t('на мапи')}</div>`;
+    div.addEventListener('click', () => flyToLocality(loc.id));
+    locList.appendChild(div);
   }
 }
-buildCommunityList('');
+buildLocalityList('');
 
 // ── Google Maps init ──────────────────────────────────────────────────────────
 let map, clusterer, infoWindow, heatmap, heatmapTurnout, heatmapRed, heatmapYellow, heatmapGreen;
@@ -708,7 +708,7 @@ function createMarker(st, i, contentEl = null) {
     infoWindow.setContent(`
       <div style="max-width:280px;font-family:sans-serif;">
         <b style="font-size:13px;">${t(st.name)}</b><br>
-        <span style="color:#888;font-size:12px;">${t(st.communityName)}</span><br>
+        <span style="color:#888;font-size:12px;">${t(st.localityName)}</span><br>
         ${numberRow}${voterRow}${approxRow}${sourceRow}${votingRow}
         <br><a href="#" id="iw-suggest-${i}" style="font-size:11px;color:#1a73e8;text-decoration:none;">📍 ${t('Предложи исправку')}</a>
       </div>`);
@@ -744,7 +744,7 @@ function refreshMarkers() {
                 && st.geo.lon >= sw.lng() - lngPad && st.geo.lon <= ne.lng() + lngPad;
     const matches = !q
       || t(st.name).toLowerCase().includes(q)
-      || t(st.communityName).toLowerCase().includes(q);
+      || t(st.localityName).toLowerCase().includes(q);
 
     if (inView && matches) {
       if (!markerCache[i]) { markerCache[i] = createMarker(st, i); toAdd.push(markerCache[i]); }
@@ -774,7 +774,7 @@ function refreshResultMarkers() {
                 && st.geo.lon >= sw.lng() - lngPad && st.geo.lon <= ne.lng() + lngPad;
     const matches = !q
       || t(st.name).toLowerCase().includes(q)
-      || t(st.communityName).toLowerCase().includes(q);
+      || t(st.localityName).toLowerCase().includes(q);
 
     if (inView && matches) {
       if (!resultMarkerCache[i]) {
@@ -1008,7 +1008,7 @@ document.getElementById('search').addEventListener('input', e => {
 function applyFilter(q) {
   q = q.toLowerCase().trim();
   activeQuery = q;
-  buildCommunityList(q);
+  buildLocalityList(q);
 
   if (!clusterer) return;
 
@@ -1019,14 +1019,14 @@ function applyFilter(q) {
     const points = mapped
       .filter(s => s.voter_count != null && (!q
         || t(s.name).toLowerCase().includes(q)
-        || t(s.communityName).toLowerCase().includes(q)))
+        || t(s.localityName).toLowerCase().includes(q)))
       .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voter_count }));
     heatmap.setData(points);
   } else if (heatmapMode === 3) {
     const points = mapped
       .filter(s => s.voting?.turnout_pct != null && (!q
         || t(s.name).toLowerCase().includes(q)
-        || t(s.communityName).toLowerCase().includes(q)))
+        || t(s.localityName).toLowerCase().includes(q)))
       .map(s => ({ location: new google.maps.LatLng(s.geo.lat, s.geo.lon), weight: s.voting.turnout_pct }));
     heatmapTurnout.setData(points);
   } else if (heatmapMode === 4) {
@@ -1051,22 +1051,22 @@ function applyFilter(q) {
   menuBtn.addEventListener('click',   () => sidebar.classList.contains('open') ? closeSidebar() : openSidebar());
   backdrop.addEventListener('click',  closeSidebar);
 
-  // close sidebar when user selects a community (flies to it)
-  document.getElementById('community-list').addEventListener('click', closeSidebar);
+  // close sidebar when user selects a locality (flies to it)
+  document.getElementById('locality-list').addEventListener('click', closeSidebar);
 })();
 
-// ── fly to community ──────────────────────────────────────────────────────────
-function flyToCommunit(communityId) {
+// ── fly to locality ──────────────────────────────────────────────────────────
+function flyToLocality(localityId) {
   if (!map) return;
-  const pts = mapped.filter(s => s.communityId === communityId);
+  const pts = mapped.filter(s => s.localityId === localityId);
   if (pts.length === 0) return;
 
   const bounds = new google.maps.LatLngBounds();
   pts.forEach(s => bounds.extend({ lat: s.geo.lat, lng: s.geo.lon }));
   map.fitBounds(bounds, 60);
 
-  document.querySelectorAll('.comm-item').forEach(el => el.classList.remove('active'));
-  const el = document.querySelector(`.comm-item[data-community-id="${communityId}"]`);
+  document.querySelectorAll('.loc-item').forEach(el => el.classList.remove('active'));
+  const el = document.querySelector(`.loc-item[data-locality-id="${localityId}"]`);
   if (el) el.classList.add('active');
 }
 </script>
@@ -1093,12 +1093,12 @@ function flyToCommunit(communityId) {
     stResultsList.innerHTML = '';
     if (!q) return;
     const matches = unmapped.filter(s =>
-      t(s.name).toLowerCase().includes(q) || t(s.communityName).toLowerCase().includes(q)
+      t(s.name).toLowerCase().includes(q) || t(s.localityName).toLowerCase().includes(q)
     ).slice(0, 40);
     matches.forEach(st => {
       const item = document.createElement('div');
       item.className = 'station-result-item';
-      item.innerHTML = `<div class="sri-name">${t(st.name)}</div><div class="sri-comm">${t(st.communityName)}</div>`;
+      item.innerHTML = `<div class="sri-name">${t(st.name)}</div><div class="sri-loc">${t(st.localityName)}</div>`;
       item.addEventListener('click', () => selectUnmappedStation(st));
       stResultsList.appendChild(item);
     });
@@ -1112,7 +1112,7 @@ function flyToCommunit(communityId) {
     stResultsList.innerHTML = '';
     stSearchInput.value = '';
     stPickerHint.style.display = 'none';
-    // show station name + community name
+    // show station name + locality name
     stDisplaySec.style.display = 'block';
     // show picker section BEFORE creating/resizing the map — container must have
     // non-zero dimensions or the map renders blank
@@ -1141,13 +1141,13 @@ function flyToCommunit(communityId) {
   // ── fill hidden + display fields ───────────────────────────────────────────
   function fillStationFields(st) {
     document.getElementById('field-station-id').value     = st.id    || '';
-    document.getElementById('field-community-id').value   = st.communityId || '';
+    document.getElementById('field-locality-id').value   = st.localityId || '';
     document.getElementById('field-station-name').value   = st.name  || '';
-    document.getElementById('field-community-name').value = st.communityName || '';
+    document.getElementById('field-locality-name').value = st.localityName || '';
     document.getElementById('field-current-lat').value    = st.geo ? st.geo.lat : '';
     document.getElementById('field-current-lon').value    = st.geo ? st.geo.lon : '';
     document.getElementById('display-station-name').value    = st.name || '';
-    document.getElementById('display-community-name').value  = st.communityName || '';
+    document.getElementById('display-locality-name').value  = st.localityName || '';
   }
 
   // ── openModal ──────────────────────────────────────────────────────────────
@@ -1164,7 +1164,7 @@ function flyToCommunit(communityId) {
 
     if (newLocationMode) {
       // clear station fields — user must pick from search
-      fillStationFields({ id:'', communityId:'', name:'', communityName:'', geo: null });
+      fillStationFields({ id:'', localityId:'', name:'', localityName:'', geo: null });
       stPickerSec.style.display   = '';
       stDisplaySec.style.display  = 'none';
       pickerSection.style.display = 'none'; // shown after station is chosen
@@ -1295,7 +1295,7 @@ function flyToCommunit(communityId) {
 
     // rebuild dynamic content
     updateStatChips();
-    buildCommunityList(document.getElementById('search').value);
+    buildLocalityList(document.getElementById('search').value);
     if (typeof infoWindow !== 'undefined' && infoWindow) infoWindow.close();
   }
 

@@ -5,8 +5,8 @@ Compare polling stations between two sources:
 
 Reports:
   - Counts: total in each source, intersection, only-in-xlsx, only-in-JSON
-  - Per-community discrepancies (counts mismatch, station-id mismatch)
-  - For shared stations: voter_count mismatches, geolocation drift, community-id mismatches
+  - Per-locality discrepancies (counts mismatch, station-id mismatch)
+  - For shared stations: voter_count mismatches, geolocation drift, locality-id mismatches
 """
 
 import argparse
@@ -27,7 +27,7 @@ EARTH_RADIUS_M = 6_371_008.8
 
 
 def load_xlsx(path: Path):
-    """Return dict[station_id] -> record, plus community map."""
+    """Return dict[station_id] -> record, plus locality map."""
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     ws = wb.active
     rows = ws.iter_rows(values_only=True)
@@ -35,8 +35,8 @@ def load_xlsx(path: Path):
     idx = {name: i for i, name in enumerate(header)}
 
     stations = {}
-    communities = defaultdict(set)  # opstina_id -> set of bm_ids
-    community_names = {}
+    localities = defaultdict(set)  # opstina_id -> set of bm_ids
+    locality_names = {}
 
     for row in rows:
         if row is None or all(c is None for c in row):
@@ -73,36 +73,36 @@ def load_xlsx(path: Path):
             "voter_count": voter_count,
         }
         if opstina_id is not None:
-            communities[opstina_id].add(bm_id)
+            localities[opstina_id].add(bm_id)
             if opstina_latin:
-                community_names.setdefault(opstina_id, opstina_latin)
+                locality_names.setdefault(opstina_id, opstina_latin)
 
-    return stations, communities, community_names
+    return stations, localities, locality_names
 
 
 def load_json(path: Path):
-    """Return dict[station_id] -> record, plus community map."""
+    """Return dict[station_id] -> record, plus locality map."""
     with path.open(encoding="utf-8") as f:
         data = json.load(f)
 
     stations = {}
-    communities = defaultdict(set)
-    community_names = {}
+    localities = defaultdict(set)
+    locality_names = {}
 
-    for comm in data.get("communities", []):
-        comm_id = str(comm.get("id")).strip()
-        comm_name = comm.get("name")
-        if comm_name:
-            community_names[comm_id] = comm_name
-        for ps in comm.get("polling_stations", []):
+    for loc in data.get("localities", []):
+        loc_id = str(loc.get("id")).strip()
+        loc_name = loc.get("name")
+        if loc_name:
+            locality_names[loc_id] = loc_name
+        for ps in loc.get("polling_stations", []):
             ps_id = str(ps.get("id")).strip()
             geo = ps.get("geo") or {}
             lat = geo.get("lat")
             lon = geo.get("lon")
             stations[ps_id] = {
                 "id": ps_id,
-                "community_id": comm_id,
-                "community_name": comm_name,
+                "locality_id": loc_id,
+                "locality_name": loc_name,
                 "name": ps.get("name"),
                 "lat": lat,
                 "lon": lon,
@@ -110,9 +110,9 @@ def load_json(path: Path):
                 "number": ps.get("number"),
                 "has_voting": bool(ps.get("voting")),
             }
-            communities[comm_id].add(ps_id)
+            localities[loc_id].add(ps_id)
 
-    return stations, communities, community_names
+    return stations, localities, locality_names
 
 
 def geo_distance_m(a, b):
@@ -127,8 +127,8 @@ def geo_distance_m(a, b):
     return 2 * EARTH_RADIUS_M * math.asin(math.sqrt(h))
 
 
-def report(xlsx_stations, xlsx_comms, xlsx_comm_names,
-           json_stations, json_comms, json_comm_names,
+def report(xlsx_stations, xlsx_locs, xlsx_loc_names,
+           json_stations, json_locs, json_loc_names,
            geo_tolerance_m=DEFAULT_GEO_TOLERANCE_M, verbose=False):
     xlsx_ids = set(xlsx_stations)
     json_ids = set(json_stations)
@@ -145,38 +145,38 @@ def report(xlsx_stations, xlsx_comms, xlsx_comm_names,
     print(f"  in both:                 {len(both):>6}")
     print(f"  only in xlsx:            {len(only_xlsx):>6}")
     print(f"  only in json:            {len(only_json):>6}")
-    print(f"  xlsx communities:        {len(xlsx_comms):>6}")
-    print(f"  json communities:        {len(json_comms):>6}")
+    print(f"  xlsx localities:        {len(xlsx_locs):>6}")
+    print(f"  json localities:        {len(json_locs):>6}")
     print()
 
-    # Communities
-    xlsx_comm_ids = set(xlsx_comms)
-    json_comm_ids = set(json_comms)
-    only_xlsx_c = xlsx_comm_ids - json_comm_ids
-    only_json_c = json_comm_ids - xlsx_comm_ids
+    # Localities
+    xlsx_loc_ids = set(xlsx_locs)
+    json_loc_ids = set(json_locs)
+    only_xlsx_c = xlsx_loc_ids - json_loc_ids
+    only_json_c = json_loc_ids - xlsx_loc_ids
     if only_xlsx_c or only_json_c:
-        print("COMMUNITY MEMBERSHIP MISMATCH")
+        print("LOCALITY MEMBERSHIP MISMATCH")
         if only_xlsx_c:
             print(f"  only in xlsx: {sorted(only_xlsx_c)}")
         if only_json_c:
             print(f"  only in json: {sorted(only_json_c)}")
         print()
 
-    # Per-community count drift
+    # Per-locality count drift
     print("=" * 70)
-    print("PER-COMMUNITY STATION COUNT (only mismatches shown)")
+    print("PER-LOCALITY STATION COUNT (only mismatches shown)")
     print("=" * 70)
     mismatches = []
-    for cid in sorted(xlsx_comm_ids | json_comm_ids, key=lambda x: int(x) if str(x).isdigit() else x):
-        x_count = len(xlsx_comms.get(cid, set()))
-        j_count = len(json_comms.get(cid, set()))
+    for cid in sorted(xlsx_loc_ids | json_loc_ids, key=lambda x: int(x) if str(x).isdigit() else x):
+        x_count = len(xlsx_locs.get(cid, set()))
+        j_count = len(json_locs.get(cid, set()))
         if x_count != j_count:
-            name = xlsx_comm_names.get(cid) or json_comm_names.get(cid) or "?"
+            name = xlsx_loc_names.get(cid) or json_loc_names.get(cid) or "?"
             mismatches.append((cid, name, x_count, j_count))
     if not mismatches:
-        print("  (all per-community counts agree)")
+        print("  (all per-locality counts agree)")
     else:
-        print(f"  {'cid':<6}{'community':<30}{'xlsx':>6}{'json':>6}{'diff':>6}")
+        print(f"  {'cid':<6}{'locality':<30}{'xlsx':>6}{'json':>6}{'diff':>6}")
         for cid, name, x, j in mismatches:
             print(f"  {cid:<6}{str(name)[:28]:<30}{x:>6}{j:>6}{x-j:>+6}")
     print()
@@ -195,15 +195,15 @@ def report(xlsx_stations, xlsx_comms, xlsx_comm_names,
         print("=" * 70)
         print(f"STATIONS ONLY IN JSON ({len(only_json)})")
         print("=" * 70)
-        for sid in sorted(only_json, key=lambda s: (json_stations[s]["community_id"] or "", s)):
+        for sid in sorted(only_json, key=lambda s: (json_stations[s]["locality_id"] or "", s)):
             r = json_stations[sid]
-            print(f"  id={sid:<6}  community={str(r['community_name'])[:22]:<22}  {str(r['name'])[:50]}")
+            print(f"  id={sid:<6}  locality={str(r['locality_name'])[:22]:<22}  {str(r['name'])[:50]}")
         print()
 
     # Field-level discrepancies for shared stations
     voter_diffs = []
     geo_diffs = []
-    comm_diffs = []
+    loc_diffs = []
     missing_geo_json = []
     missing_voter_json = []
 
@@ -211,9 +211,9 @@ def report(xlsx_stations, xlsx_comms, xlsx_comm_names,
         x = xlsx_stations[sid]
         j = json_stations[sid]
 
-        # Community membership
-        if x["opstina_id"] != j["community_id"]:
-            comm_diffs.append((sid, x["opstina_id"], j["community_id"]))
+        # Locality membership
+        if x["opstina_id"] != j["locality_id"]:
+            loc_diffs.append((sid, x["opstina_id"], j["locality_id"]))
 
         # Voter count
         if x["voter_count"] is not None and j["voter_count"] is not None:
@@ -235,19 +235,19 @@ def report(xlsx_stations, xlsx_comms, xlsx_comm_names,
     print("=" * 70)
     print("FIELD-LEVEL DRIFT (shared stations)")
     print("=" * 70)
-    print(f"  community mismatches:    {len(comm_diffs):>6}")
+    print(f"  locality mismatches:    {len(loc_diffs):>6}")
     print(f"  voter_count mismatches:  {len(voter_diffs):>6}")
     print(f"  geolocation drift (>{geo_tolerance_m:g} m): {len(geo_diffs)}")
     print(f"  voter_count missing in json: {len(missing_voter_json)}")
     print(f"  geo missing in json:         {len(missing_geo_json)}")
     print()
 
-    if comm_diffs:
-        print("-- community mismatches (bm_id, xlsx_opstina, json_community)")
-        for row in comm_diffs[:50]:
+    if loc_diffs:
+        print("-- locality mismatches (bm_id, xlsx_opstina, json_locality)")
+        for row in loc_diffs[:50]:
             print(f"  {row}")
-        if len(comm_diffs) > 50:
-            print(f"  ... and {len(comm_diffs) - 50} more")
+        if len(loc_diffs) > 50:
+            print(f"  ... and {len(loc_diffs) - 50} more")
         print()
 
     if voter_diffs:
@@ -281,12 +281,12 @@ def report(xlsx_stations, xlsx_comms, xlsx_comm_names,
         "in_both": len(both),
         "only_xlsx": sorted(only_xlsx),
         "only_json": sorted(only_json),
-        "community_mismatches": comm_diffs,
+        "locality_mismatches": loc_diffs,
         "voter_count_mismatches": voter_diffs,
         "geo_drift": geo_diffs,
         "voter_count_missing_in_json": missing_voter_json,
         "geo_missing_in_json": missing_geo_json,
-        "per_community_count_mismatch": mismatches,
+        "per_locality_count_mismatch": mismatches,
     }
 
 
@@ -308,14 +308,14 @@ def main():
         sys.exit(f"json not found: {json_path}")
 
     print(f"Loading {xlsx_path.name}...")
-    xlsx_stations, xlsx_comms, xlsx_comm_names = load_xlsx(xlsx_path)
+    xlsx_stations, xlsx_locs, xlsx_loc_names = load_xlsx(xlsx_path)
     print(f"Loading {json_path.name}...")
-    json_stations, json_comms, json_comm_names = load_json(json_path)
+    json_stations, json_locs, json_loc_names = load_json(json_path)
     print()
 
     summary = report(
-        xlsx_stations, xlsx_comms, xlsx_comm_names,
-        json_stations, json_comms, json_comm_names,
+        xlsx_stations, xlsx_locs, xlsx_loc_names,
+        json_stations, json_locs, json_loc_names,
         geo_tolerance_m=args.threshold_meters,
         verbose=args.verbose,
     )

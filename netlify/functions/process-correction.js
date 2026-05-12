@@ -1,6 +1,6 @@
 /**
  * POST /.netlify/functions/process-correction
- * Body: { submissionId, action, stationId, communityId, newLat, newLon, isApprox }
+ * Body: { submissionId, action, stationId, localityId, newLat, newLon, isApprox }
  * action: "accept" | "reject"
  *
  * On accept:
@@ -35,7 +35,7 @@ exports.handler = async function(event) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
 
-  const { submissionId, action, stationId, communityId, newLat, newLon, isApprox } = body;
+  const { submissionId, action, stationId, localityId, newLat, newLon, isApprox } = body;
 
   if (!submissionId || !action) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing submissionId or action' }) };
@@ -59,8 +59,8 @@ exports.handler = async function(event) {
     if (!githubToken || !repoOwner || !repoName) {
       return { statusCode: 500, body: JSON.stringify({ error: 'Missing GitHub env vars' }) };
     }
-    if (!stationId || !communityId || !newLat || !newLon) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Missing stationId, communityId, newLat, or newLon' }) };
+    if (!stationId || !localityId || !newLat || !newLon) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Missing stationId, localityId, newLat, or newLon' }) };
     }
 
     const lat = parseFloat(newLat);
@@ -111,16 +111,16 @@ exports.handler = async function(event) {
     }
 
     // 3. Update the station
-    // Structure: { "election": {...}, "communities": [ { id: "1", name: "...", polling_stations: [...] }, ... ] }
-    const communities = jsonData.communities;
-    if (!Array.isArray(communities)) {
-      return { statusCode: 500, body: JSON.stringify({ error: 'Unexpected JSON structure: missing communities array' }) };
+    // Structure: { "election": {...}, "localities": [ { id: "1", name: "...", polling_stations: [...] }, ... ] }
+    const localities = jsonData.localities;
+    if (!Array.isArray(localities)) {
+      return { statusCode: 500, body: JSON.stringify({ error: 'Unexpected JSON structure: missing localities array' }) };
     }
 
     let updated = false;
-    for (const comm of communities) {
-      if (comm.id !== String(communityId)) continue;
-      for (const station of comm.polling_stations) {
+    for (const loc of localities) {
+      if (loc.id !== String(localityId)) continue;
+      for (const station of loc.polling_stations) {
         if (station.id !== String(stationId)) continue;
         station.geo         = { lat, lon };
         station.geo_approx  = isApprox === true;
@@ -132,7 +132,7 @@ exports.handler = async function(event) {
     }
 
     if (!updated) {
-      return { statusCode: 404, body: JSON.stringify({ error: `Station ${stationId} not found in community ${communityId}` }) };
+      return { statusCode: 404, body: JSON.stringify({ error: `Station ${stationId} not found in locality ${localityId}` }) };
     }
 
     // 4. Re-encode and commit

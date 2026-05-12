@@ -91,7 +91,7 @@ exports.handler = async function (event) {
   const results = top.map(({ s, d }) => ({
     id: s.id,
     name: s.name,
-    community: { id: s.communityId, name: s.communityName },
+    locality: { id: s.localityId, name: s.localityName },
     geo: { lat: s.lat, lon: s.lon },
     distance_m: Math.round(d),
   }));

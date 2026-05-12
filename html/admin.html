@@ -144,7 +144,7 @@
       <div class="detail-section">
         <h3>Бирачко место</h3>
         <div class="detail-row"><span class="detail-label">Назив</span><span class="detail-value" id="d-station-name"></span></div>
-        <div class="detail-row"><span class="detail-label">Општина</span><span class="detail-value" id="d-community-name"></span></div>
+        <div class="detail-row"><span class="detail-label">Општина</span><span class="detail-value" id="d-locality-name"></span></div>
         <div class="detail-row"><span class="detail-label">ID</span><span class="detail-value" id="d-station-id" style="font-size:11px;color:#6c7086;"></span></div>
       </div>
 
@@ -251,7 +251,7 @@ async function loadSubmissions() {
       row.className      = 'sub-item';
       row.dataset.idx    = idx;
       row.innerHTML      = `<div class="sub-name">${esc(sub.data['station-name'] || '(непознато)')}</div>
-        <div class="sub-meta">${esc(sub.data['community-name'] || '')} · ${d.toLocaleDateString('sr-Latn')}</div>
+        <div class="sub-meta">${esc(sub.data['locality-name'] || '')} · ${d.toLocaleDateString('sr-Latn')}</div>
         <div class="sub-meta">${esc(sub.data['submitter-name'] || '')}</div>`;
       row.addEventListener('click', () => selectSubmission(idx));
       listEl.appendChild(row);
@@ -281,8 +281,8 @@ function renderDetail(sub) {
   document.getElementById('detail-content').style.display = 'block';
 
   document.getElementById('d-station-name').textContent    = d['station-name']      || '—';
-  document.getElementById('d-community-name').textContent  = d['community-name']    || '—';
-  document.getElementById('d-station-id').textContent      = `station: ${d['station-id']} · community: ${d['community-id']}`;
+  document.getElementById('d-locality-name').textContent  = d['locality-name']    || '—';
+  document.getElementById('d-station-id').textContent      = `station: ${d['station-id']} · locality: ${d['locality-id']}`;
   document.getElementById('d-current-coords').textContent  = d['current-lat'] && d['current-lon']
     ? `${d['current-lat']}, ${d['current-lon']}` : '—';
   document.getElementById('d-new-coords').textContent      = d['new-lat'] && d['new-lon']
@@ -359,7 +359,7 @@ async function processAction(action) {
         submissionId: selected.id,
         action,
         stationId:   d['station-id'],
-        communityId: d['community-id'],
+        localityId:  d['locality-id'],
         newLat:      d['new-lat'],
         newLon:      d['new-lon'],
         isApprox:    d['is-approx'] === 'yes',

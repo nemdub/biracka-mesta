@@ -32,23 +32,23 @@ function loadStations() {
 
   const json = JSON.parse(raw);
   const flat = [];
-  for (const comm of json.communities ?? []) {
-    const communityId = comm.id;
-    const communityName = comm.name;
-    const communityNorm = normalize(communityName);
-    for (const st of comm.polling_stations ?? []) {
+  for (const loc of json.localities ?? []) {
+    const localityId = loc.id;
+    const localityName = loc.name;
+    const localityNorm = normalize(localityName);
+    for (const st of loc.polling_stations ?? []) {
       const lat = st.geo?.lat;
       const lon = st.geo?.lon;
       if (typeof lat !== 'number' || typeof lon !== 'number') continue;
       flat.push({
         id: st.id,
         name: st.name,
-        communityId,
-        communityName,
+        localityId,
+        localityName,
         lat,
         lon,
         _norm: normalize(st.name),
-        _normCommunity: communityNorm,
+        _normLocality: localityNorm,
       });
     }
   }
