@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-13T16:25:16.325Z",
+  "updated_at": "2026-05-13T16:27:14.133Z",
   "decisions": {
     "ЋИЋЕВАЦ|-|14": {
       "opstina_cyr": "ЋИЋЕВАЦ",
@@ -161,10 +161,26 @@
       "json_id": "5183",
       "verdict": "xlsx",
       "decided_at": "2026-05-13T16:25:07.442Z"
+    },
+    "АЛЕКСАНДРОВАЦ|32|32": {
+      "opstina_cyr": "АЛЕКСАНДРОВАЦ",
+      "rb_xlsx": 32,
+      "json_number": 32,
+      "json_id": "7928",
+      "verdict": "xlsx",
+      "decided_at": "2026-05-13T16:26:57.698Z"
+    },
+    "АЛЕКСАНДРОВАЦ|33|33": {
+      "opstina_cyr": "АЛЕКСАНДРОВАЦ",
+      "rb_xlsx": 33,
+      "json_number": 33,
+      "json_id": "7466",
+      "verdict": "xlsx",
+      "decided_at": "2026-05-13T16:27:05.147Z"
     }
   },
   "decided_by_count": {
-    "xlsx": 20,
+    "xlsx": 22,
     "json": 0,
     "neither": 0
   }
