@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-13T14:00:52.912Z",
+  "updated_at": "2026-05-13T14:10:55.384Z",
   "decisions": {
     "ЋИЋЕВАЦ|-|14": {
       "opstina_cyr": "ЋИЋЕВАЦ",
@@ -113,10 +113,18 @@
       "json_id": "7016",
       "verdict": "xlsx",
       "decided_at": "2026-05-13T14:00:44.246Z"
+    },
+    "СУБОТИЦА - ГРАД|6|6": {
+      "opstina_cyr": "СУБОТИЦА - ГРАД",
+      "rb_xlsx": 6,
+      "json_number": 6,
+      "json_id": "7542",
+      "verdict": "xlsx",
+      "decided_at": "2026-05-13T14:10:42.577Z"
     }
   },
   "decided_by_count": {
-    "xlsx": 14,
+    "xlsx": 15,
     "json": 0,
     "neither": 0
   }
