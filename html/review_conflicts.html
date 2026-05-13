@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coord conflict review — Бирачка места</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #1e1e2e;
+      --bg2: #181825;
+      --panel: #313244;
+      --panel-hi: #45475a;
+      --fg: #cdd6f4;
+      --muted: #6c7086;
+      --accent: #cba6f7;
+      --green: #a6e3a1;
+      --red: #f38ba8;
+      --yellow: #f9e2af;
+      --blue: #89b4fa;
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px;
+      background: var(--bg); color: var(--fg);
+      display: flex; flex-direction: column;
+    }
+
+    /* ── login overlay ─────────────────────────────────────────────────── */
+    #login-overlay {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,0.85); align-items: center; justify-content: center;
+    }
+    #login-overlay.open { display: flex; }
+    #login-box {
+      background: var(--bg); border: 1px solid var(--panel-hi); border-radius: 12px;
+      padding: 32px; width: min(380px, 90vw); text-align: center;
+    }
+    #login-box h1 { font-size: 17px; color: var(--accent); margin-bottom: 20px; }
+    #login-box input {
+      width: 100%; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid var(--panel-hi); background: var(--panel); color: var(--fg);
+      font-size: 14px; outline: none; margin-bottom: 12px;
+    }
+    #login-box input:focus { border-color: var(--accent); }
+    #login-btn {
+      width: 100%; padding: 10px; border-radius: 8px; border: none;
+      background: var(--accent); color: var(--bg); font-weight: 700; font-size: 14px; cursor: pointer;
+    }
+    #login-btn:hover { background: #b793e0; }
+    #login-error { color: var(--red); font-size: 12px; margin-top: 8px; display: none; }
+
+    /* ── header ────────────────────────────────────────────────────────── */
+    #top-bar {
+      padding: 10px 16px; background: var(--bg2); border-bottom: 1px solid var(--panel);
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    #top-bar h1 { font-size: 14px; color: var(--accent); font-weight: 700; }
+    .stat {
+      padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
+      background: var(--panel); color: var(--fg);
+    }
+    .stat.green { background: var(--green); color: var(--bg); }
+    .stat.yellow { background: var(--yellow); color: var(--bg); }
+    .stat.red { background: var(--red); color: var(--bg); }
+    .stat.blue { background: var(--blue); color: var(--bg); }
+
+    #filter-sel, #opstina-sel {
+      padding: 5px 10px; border-radius: 6px; border: 1px solid var(--panel-hi);
+      background: var(--panel); color: var(--fg); font-size: 12px;
+    }
+    #sync-pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+      border-radius: 12px; font-size: 12px; background: var(--panel); color: var(--muted);
+    }
+    #sync-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    #sync-pill.dirty .dot { background: var(--yellow); }
+    #sync-pill.synced .dot { background: var(--green); }
+    #sync-pill.error .dot { background: var(--red); }
+    .icon-btn {
+      padding: 5px 10px; border-radius: 6px; border: 1px solid var(--panel-hi);
+      background: transparent; color: var(--muted); font-size: 12px; cursor: pointer;
+    }
+    .icon-btn:hover { background: var(--panel); color: var(--fg); }
+    .spacer { flex: 1; }
+
+    /* ── progress bar ──────────────────────────────────────────────────── */
+    #progress-bar {
+      height: 4px; background: var(--panel); position: relative;
+    }
+    #progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--green); transition: width 0.2s; }
+
+    /* ── main pane ─────────────────────────────────────────────────────── */
+    #main {
+      flex: 1; display: flex; flex-direction: column;
+      padding: 12px 16px; gap: 12px; overflow: auto;
+    }
+
+    #empty-state {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 14px; text-align: center; padding: 24px;
+    }
+
+    #station-card {
+      background: var(--bg2); border: 1px solid var(--panel); border-radius: 10px;
+      padding: 12px 16px;
+    }
+    #station-card .row1 {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      font-size: 12px; color: var(--muted); margin-bottom: 6px;
+    }
+    #station-card .row1 .label { color: var(--accent); font-weight: 700; font-size: 14px; }
+    #station-card .row1 .delta { color: var(--yellow); font-weight: 600; }
+    #station-card .row1 .sim { color: var(--blue); }
+    #station-card .name { font-size: 15px; font-weight: 600; color: var(--fg); margin: 4px 0; }
+    #station-card .addr { font-size: 13px; color: var(--muted); }
+    #station-card .index { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+    #maps-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      min-height: 480px;
+    }
+    .map-card {
+      background: var(--bg2); border: 1px solid var(--panel); border-radius: 10px;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .map-card.left { border-left: 3px solid var(--blue); }
+    .map-card.right { border-left: 3px solid var(--yellow); }
+    .map-card .head {
+      padding: 8px 12px; background: var(--panel); display: flex; align-items: center;
+      gap: 10px; font-size: 12px;
+    }
+    .map-card .head .src { font-weight: 700; font-size: 13px; }
+    .map-card.left .head .src { color: var(--blue); }
+    .map-card.right .head .src { color: var(--yellow); }
+    .map-card .head .coord { color: var(--muted); font-family: 'SF Mono', monospace; font-size: 11px; }
+    .map-card .head .links { margin-left: auto; display: flex; gap: 6px; }
+    .map-card .head a {
+      color: var(--fg); text-decoration: none; font-size: 11px;
+      padding: 3px 8px; border-radius: 4px; background: var(--bg2); border: 1px solid var(--panel-hi);
+    }
+    .map-card .head a:hover { background: var(--panel-hi); }
+    .map-card .map { flex: 1; min-height: 400px; background: var(--bg); }
+
+    #decision-row {
+      background: var(--bg2); border: 1px solid var(--panel); border-radius: 10px;
+      padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
+    }
+    #note-input {
+      width: 100%; padding: 8px 10px; border-radius: 6px;
+      border: 1px solid var(--panel-hi); background: var(--panel); color: var(--fg);
+      font-size: 13px; outline: none; font-family: inherit;
+    }
+    #note-input:focus { border-color: var(--accent); }
+    #decision-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .verdict-btn {
+      padding: 10px 18px; border-radius: 8px; border: 1px solid var(--panel-hi);
+      background: var(--panel); color: var(--fg); font-size: 13px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; gap: 6px;
+    }
+    .verdict-btn .kbd {
+      background: var(--bg); padding: 1px 6px; border-radius: 3px;
+      font-size: 11px; color: var(--muted); font-family: 'SF Mono', monospace;
+    }
+    .verdict-btn:hover { background: var(--panel-hi); }
+    .verdict-btn.xlsx { border-color: var(--blue); }
+    .verdict-btn.xlsx:hover { background: var(--blue); color: var(--bg); }
+    .verdict-btn.xlsx.active { background: var(--blue); color: var(--bg); }
+    .verdict-btn.json { border-color: var(--yellow); }
+    .verdict-btn.json:hover { background: var(--yellow); color: var(--bg); }
+    .verdict-btn.json.active { background: var(--yellow); color: var(--bg); }
+    .verdict-btn.neither { border-color: var(--red); }
+    .verdict-btn.neither:hover { background: var(--red); color: var(--bg); }
+    .verdict-btn.neither.active { background: var(--red); color: var(--bg); }
+    .nav-btn {
+      padding: 10px 14px; border-radius: 8px; border: 1px solid var(--panel-hi);
+      background: transparent; color: var(--muted); font-size: 13px; cursor: pointer;
+    }
+    .nav-btn:hover { background: var(--panel); color: var(--fg); }
+    #current-verdict {
+      font-size: 12px; color: var(--muted);
+    }
+    #current-verdict.has-verdict { color: var(--green); }
+  </style>
+</head>
+<body>
+
+<div id="login-overlay" class="open">
+  <div id="login-box">
+    <h1>Admin pristup</h1>
+    <input type="password" id="token-input" placeholder="Admin token" autocomplete="current-password">
+    <button id="login-btn">Пријави се</button>
+    <div id="login-error">Погрешан токен. Покушајте поново.</div>
+  </div>
+</div>
+
+<div id="top-bar">
+  <h1>Coord conflict review</h1>
+  <span class="stat" id="stat-progress">0 / 0</span>
+  <span class="stat blue" id="stat-xlsx">xlsx 0</span>
+  <span class="stat yellow" id="stat-json">json 0</span>
+  <span class="stat red" id="stat-neither">neither 0</span>
+  <span class="stat" id="stat-remaining">0 left</span>
+  <span class="spacer"></span>
+  <select id="filter-sel" title="Filter queue">
+    <option value="unresolved">Unresolved only</option>
+    <option value="flagged">Flagged opstinas only</option>
+    <option value="all">All conflicts</option>
+  </select>
+  <select id="opstina-sel" title="Filter by opstina">
+    <option value="">Any opstina</option>
+  </select>
+  <span id="sync-pill"><span class="dot"></span><span id="sync-text">offline</span></span>
+  <button class="icon-btn" id="sync-btn" title="Sync now">Sync</button>
+  <button class="icon-btn" id="logout-btn">Logout</button>
+</div>
+
+<div id="progress-bar"><div id="progress-fill"></div></div>
+
+<div id="main">
+  <div id="empty-state">Loading…</div>
+</div>
+
+<!-- review-page data + Google Maps SDK loaded at the bottom -->
+<script src="coord_conflicts_data.js"></script>
+<script>
+(() => {
+'use strict';
+
+// ── auth ────────────────────────────────────────────────────────────────
+const loginOverlay = document.getElementById('login-overlay');
+const loginError   = document.getElementById('login-error');
+let adminToken = localStorage.getItem('adminToken') || '';
+
+function tryLogin() {
+  const val = document.getElementById('token-input').value.trim();
+  if (!val) return;
+  adminToken = val;
+  localStorage.setItem('adminToken', val);
+  loginOverlay.classList.remove('open');
+  loginError.style.display = 'none';
+  boot();
+}
+document.getElementById('login-btn').addEventListener('click', tryLogin);
+document.getElementById('token-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') tryLogin();
+});
+document.getElementById('logout-btn').addEventListener('click', () => {
+  localStorage.removeItem('adminToken');
+  adminToken = '';
+  loginOverlay.classList.add('open');
+});
+
+// ── state ───────────────────────────────────────────────────────────────
+const LS_DECISIONS_KEY = 'coord_verdicts.decisions';
+const LS_LAST_INDEX    = 'coord_verdicts.lastIndex';
+
+const conflicts = (window.CONFLICTS_DATA && window.CONFLICTS_DATA.conflicts) || [];
+const flaggedOpstinas = new Set((window.CONFLICTS_DATA && window.CONFLICTS_DATA.flaggedOpstinas) || []);
+
+let decisions = JSON.parse(localStorage.getItem(LS_DECISIONS_KEY) || '{}');
+let dirty = false;
+let syncTimer = null;
+let mapsReady = false;
+let queuedRender = false;
+let leftMap, rightMap, leftMarker, rightMarker, syncingMaps = false;
+let coupled = true;  // pan/zoom sync between the two maps
+
+let view = {
+  filter: 'unresolved', // 'unresolved' | 'flagged' | 'all'
+  opstina: '',
+};
+let queue = [];           // filtered list of indices into `conflicts`
+let queuePos = 0;         // index into queue
+
+// ── persist & sync ─────────────────────────────────────────────────────
+function persistDecisions() {
+  localStorage.setItem(LS_DECISIONS_KEY, JSON.stringify(decisions));
+}
+function markDirty() {
+  dirty = true;
+  setSyncPill('dirty', 'unsynced');
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncToServer, 8000);
+}
+function setSyncPill(cls, text) {
+  const pill = document.getElementById('sync-pill');
+  pill.className = '';
+  if (cls) pill.classList.add(cls);
+  document.getElementById('sync-text').textContent = text;
+}
+
+async function fetchFromServer() {
+  setSyncPill('', 'syncing…');
+  try {
+    const resp = await fetch('/.netlify/functions/get-verdicts', {
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (resp.status === 401) {
+      setSyncPill('error', 'unauthorized');
+      localStorage.removeItem('adminToken');
+      adminToken = '';
+      loginOverlay.classList.add('open');
+      return;
+    }
+    if (!resp.ok) {
+      setSyncPill('error', `server ${resp.status}`);
+      return;
+    }
+    const payload = await resp.json();
+    const serverDecisions = payload.decisions || {};
+    let merged = 0;
+    for (const [key, d] of Object.entries(serverDecisions)) {
+      const local = decisions[key];
+      if (!local || (d.decided_at && d.decided_at > (local.decided_at || ''))) {
+        decisions[key] = d;
+        merged++;
+      }
+    }
+    persistDecisions();
+    setSyncPill('synced', `synced (${merged} pulled)`);
+  } catch (err) {
+    setSyncPill('error', err.message);
+  }
+}
+
+async function syncToServer() {
+  if (!dirty) return;
+  if (Object.keys(decisions).length === 0) {
+    dirty = false;
+    setSyncPill('synced', 'nothing to sync');
+    return;
+  }
+  setSyncPill('', 'syncing…');
+  try {
+    const resp = await fetch('/.netlify/functions/save-verdicts', {
+      method: 'POST',
+      headers: {
+        'X-Admin-Token': adminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ decisions }),
+    });
+    if (resp.status === 401) {
+      setSyncPill('error', 'unauthorized');
+      return;
+    }
+    if (!resp.ok) {
+      setSyncPill('error', `server ${resp.status}`);
+      return;
+    }
+    const result = await resp.json();
+    dirty = false;
+    const total = result.total_decisions ?? '?';
+    setSyncPill('synced', `synced ${result.written}/${total}`);
+  } catch (err) {
+    setSyncPill('error', err.message);
+  }
+}
+
+document.getElementById('sync-btn').addEventListener('click', () => syncToServer());
+
+window.addEventListener('beforeunload', () => {
+  if (!dirty) return;
+  try {
+    const blob = new Blob(
+      [JSON.stringify({ decisions })],
+      { type: 'application/json' },
+    );
+    navigator.sendBeacon('/.netlify/functions/save-verdicts?token=' + encodeURIComponent(adminToken), blob);
+  } catch {}
+});
+
+// ── filtering ───────────────────────────────────────────────────────────
+function buildQueue() {
+  queue = [];
+  for (let i = 0; i < conflicts.length; i++) {
+    const c = conflicts[i];
+    if (view.opstina && c.opstina_cyr !== view.opstina) continue;
+    if (view.filter === 'flagged' && !flaggedOpstinas.has(c.opstina_cyr)) continue;
+    if (view.filter === 'unresolved' && decisions[c.key]) continue;
+    queue.push(i);
+  }
+  if (queuePos >= queue.length) queuePos = Math.max(0, queue.length - 1);
+}
+
+function populateOpstinaSelect() {
+  const sel = document.getElementById('opstina-sel');
+  const opstinas = Array.from(new Set(conflicts.map(c => c.opstina_cyr))).sort();
+  for (const o of opstinas) {
+    const opt = document.createElement('option');
+    opt.value = o;
+    opt.textContent = (flaggedOpstinas.has(o) ? '⚑ ' : '') + o;
+    sel.appendChild(opt);
+  }
+}
+
+document.getElementById('filter-sel').addEventListener('change', e => {
+  view.filter = e.target.value;
+  queuePos = 0;
+  buildQueue(); render();
+});
+document.getElementById('opstina-sel').addEventListener('change', e => {
+  view.opstina = e.target.value;
+  queuePos = 0;
+  buildQueue(); render();
+});
+
+// ── stats ───────────────────────────────────────────────────────────────
+function updateStats() {
+  const total = conflicts.length;
+  const decided = Object.keys(decisions).filter(k => conflicts.some(c => c.key === k)).length;
+  const counts = { xlsx: 0, json: 0, neither: 0 };
+  for (const d of Object.values(decisions)) {
+    if (counts[d.verdict] !== undefined) counts[d.verdict]++;
+  }
+  document.getElementById('stat-progress').textContent = `${decided} / ${total}`;
+  document.getElementById('stat-xlsx').textContent = `xlsx ${counts.xlsx}`;
+  document.getElementById('stat-json').textContent = `json ${counts.json}`;
+  document.getElementById('stat-neither').textContent = `neither ${counts.neither}`;
+  document.getElementById('stat-remaining').textContent = `${total - decided} left`;
+  document.getElementById('progress-fill').style.width = `${total ? (decided * 100 / total).toFixed(1) : 0}%`;
+}
+
+// ── render ──────────────────────────────────────────────────────────────
+function render() {
+  updateStats();
+  const main = document.getElementById('main');
+
+  if (queue.length === 0) {
+    main.innerHTML = '<div id="empty-state">No conflicts match the current filter. Try widening the filter or finishing existing decisions.</div>';
+    return;
+  }
+  if (queuePos < 0) queuePos = 0;
+  if (queuePos >= queue.length) queuePos = queue.length - 1;
+  const c = conflicts[queue[queuePos]];
+
+  // Render the station card and decision row (preserve map containers
+  // so we don't tear down Google Map instances on every navigation).
+  main.innerHTML = `
+    <div id="station-card">
+      <div class="row1">
+        <span class="label">${c.opstina_cyr}${flaggedOpstinas.has(c.opstina_cyr) ? ' ⚑' : ''}</span>
+        <span>РБ ${c.rb_xlsx ?? '—'} (xlsx) → # ${c.json_number ?? '—'} (json)</span>
+        <span class="delta">Δ ${Math.round(c.distance_m).toLocaleString()} m</span>
+        <span class="sim">name sim ${(c.name_similarity ?? 0).toFixed(2)}</span>
+        <span class="index">${queuePos + 1} / ${queue.length} in queue</span>
+      </div>
+      <div class="name">${escapeHtml(c.xlsx_name || c.json_name || '—')}</div>
+      <div class="addr">${escapeHtml(c.xlsx_address || '')}</div>
+    </div>
+    <div id="maps-row">
+      <div class="map-card left">
+        <div class="head">
+          <span class="src">xlsx (2022 verified)</span>
+          <span class="coord">${c.xlsx_lat.toFixed(5)}, ${c.xlsx_lon.toFixed(5)}</span>
+          <span class="links">
+            <a href="https://www.google.com/maps?q=${c.xlsx_lat},${c.xlsx_lon}" target="_blank" rel="noopener">Maps ↗</a>
+            ${c.xlsx_gmaps_url ? `<a href="${c.xlsx_gmaps_url}" target="_blank" rel="noopener" title="Original place link the volunteer pinned">place ↗</a>` : ''}
+          </span>
+        </div>
+        <div class="map" id="left-map"></div>
+      </div>
+      <div class="map-card right">
+        <div class="head">
+          <span class="src">json (2023 production)</span>
+          <span class="coord">${c.json_lat.toFixed(5)}, ${c.json_lon.toFixed(5)}</span>
+          <span class="links">
+            <a href="https://www.google.com/maps?q=${c.json_lat},${c.json_lon}" target="_blank" rel="noopener">Maps ↗</a>
+          </span>
+        </div>
+        <div class="map" id="right-map"></div>
+      </div>
+    </div>
+    <div id="decision-row">
+      <input type="text" id="note-input" placeholder="Optional note (Tab to focus / decide buttons still work)">
+      <div id="decision-buttons">
+        <button class="verdict-btn xlsx" data-verdict="xlsx"><span>xlsx is right</span><span class="kbd">A</span></button>
+        <button class="verdict-btn json" data-verdict="json"><span>json is right</span><span class="kbd">L</span></button>
+        <button class="verdict-btn neither" data-verdict="neither"><span>neither</span><span class="kbd">N</span></button>
+        <button class="nav-btn" id="prev-btn">← Prev</button>
+        <button class="nav-btn" id="next-btn">Next →</button>
+        <button class="icon-btn" id="couple-btn">${coupled ? 'Decouple maps' : 'Couple maps'}</button>
+        <span id="current-verdict"></span>
+      </div>
+    </div>
+  `;
+
+  // Wire decision buttons
+  for (const btn of main.querySelectorAll('.verdict-btn')) {
+    btn.addEventListener('click', () => decide(btn.dataset.verdict));
+  }
+  document.getElementById('prev-btn').addEventListener('click', () => navigate(-1));
+  document.getElementById('next-btn').addEventListener('click', () => navigate(+1));
+  document.getElementById('couple-btn').addEventListener('click', () => {
+    coupled = !coupled;
+    document.getElementById('couple-btn').textContent = coupled ? 'Decouple maps' : 'Couple maps';
+  });
+
+  // Existing decision (if any)
+  const existing = decisions[c.key];
+  if (existing) {
+    document.getElementById('current-verdict').textContent =
+      `previous: ${existing.verdict}${existing.note ? ' — "' + existing.note + '"' : ''}`;
+    document.getElementById('current-verdict').className = 'has-verdict';
+    document.getElementById('note-input').value = existing.note || '';
+    const btn = main.querySelector(`.verdict-btn[data-verdict="${existing.verdict}"]`);
+    if (btn) btn.classList.add('active');
+  }
+
+  // Render maps
+  if (mapsReady) {
+    renderMaps(c);
+  } else {
+    queuedRender = true;
+  }
+}
+
+function renderMaps(c) {
+  const leftLatLng = { lat: c.xlsx_lat, lng: c.xlsx_lon };
+  const rightLatLng = { lat: c.json_lat, lng: c.json_lon };
+  const opts = {
+    mapTypeId: 'hybrid',
+    zoom: 18,
+    tilt: 0,
+    streetViewControl: true,
+    fullscreenControl: false,
+    mapId: 'CONFLICT_REVIEW_MAP',
+  };
+  leftMap = new google.maps.Map(document.getElementById('left-map'),
+    { ...opts, center: leftLatLng });
+  rightMap = new google.maps.Map(document.getElementById('right-map'),
+    { ...opts, center: rightLatLng });
+  leftMarker = new google.maps.marker.AdvancedMarkerElement({
+    map: leftMap, position: leftLatLng, title: 'xlsx',
+  });
+  rightMarker = new google.maps.marker.AdvancedMarkerElement({
+    map: rightMap, position: rightLatLng, title: 'json',
+  });
+
+  const sync = (a, b) => {
+    a.addListener('center_changed', () => {
+      if (!coupled || syncingMaps) return;
+      syncingMaps = true;
+      b.setCenter(a.getCenter());
+      syncingMaps = false;
+    });
+    a.addListener('zoom_changed', () => {
+      if (!coupled || syncingMaps) return;
+      syncingMaps = true;
+      b.setZoom(a.getZoom());
+      syncingMaps = false;
+    });
+  };
+  sync(leftMap, rightMap);
+  sync(rightMap, leftMap);
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
+
+// ── decisions ───────────────────────────────────────────────────────────
+function decide(verdict) {
+  if (!queue.length) return;
+  const c = conflicts[queue[queuePos]];
+  const note = (document.getElementById('note-input')?.value || '').trim();
+  decisions[c.key] = {
+    opstina_cyr: c.opstina_cyr,
+    rb_xlsx: c.rb_xlsx,
+    json_number: c.json_number,
+    json_id: c.json_id,
+    verdict,
+    note: note || undefined,
+    decided_at: new Date().toISOString(),
+  };
+  persistDecisions();
+  markDirty();
+  // Auto-advance only if we're in "unresolved" filter (otherwise the
+  // user is re-reviewing a specific opstina and probably wants to stay).
+  if (view.filter === 'unresolved') {
+    // After decision the current entry is no longer in the unresolved
+    // queue. Rebuild and keep queuePos so the next item slides in.
+    buildQueue();
+    if (queuePos >= queue.length) queuePos = Math.max(0, queue.length - 1);
+    render();
+  } else {
+    render();
+  }
+}
+
+function navigate(delta) {
+  if (!queue.length) return;
+  queuePos = Math.min(Math.max(0, queuePos + delta), queue.length - 1);
+  localStorage.setItem(LS_LAST_INDEX, String(queuePos));
+  render();
+}
+
+document.addEventListener('keydown', e => {
+  if (loginOverlay.classList.contains('open')) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+    if (e.key === 'Enter' && tag === 'input' && e.target.id === 'note-input') {
+      e.target.blur();
+    }
+    return;
+  }
+  if (e.key === 'a' || e.key === 'A') { decide('xlsx'); }
+  else if (e.key === 'l' || e.key === 'L') { decide('json'); }
+  else if (e.key === 'n' || e.key === 'N') { decide('neither'); }
+  else if (e.key === 'ArrowLeft') { navigate(-1); }
+  else if (e.key === 'ArrowRight') { navigate(+1); }
+});
+
+// ── boot ────────────────────────────────────────────────────────────────
+async function boot() {
+  populateOpstinaSelect();
+  queuePos = parseInt(localStorage.getItem(LS_LAST_INDEX) || '0', 10) || 0;
+  buildQueue();
+  render();
+  await fetchFromServer();
+  buildQueue();   // re-filter once server merge done
+  render();
+}
+
+window.initReviewMaps = function() {
+  mapsReady = true;
+  if (queuedRender && queue.length) {
+    queuedRender = false;
+    const c = conflicts[queue[queuePos]];
+    renderMaps(c);
+  }
+};
+
+if (adminToken) {
+  loginOverlay.classList.remove('open');
+  boot();
+}
+
+})();
+</script>
+
+<script async defer
+  src="https://maps.googleapis.com/maps/api/js?key=MAPS_API_KEY_PLACEHOLDER&libraries=marker&loading=async&callback=initReviewMaps">
+</script>
+
+</body>
+</html>
