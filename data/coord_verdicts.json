@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-05-13T16:27:14.133Z",
+  "updated_at": "2026-05-13T14:00:52.912Z",
   "decisions": {
     "ЋИЋЕВАЦ|-|14": {
       "opstina_cyr": "ЋИЋЕВАЦ",
@@ -113,74 +113,10 @@
       "json_id": "7016",
       "verdict": "xlsx",
       "decided_at": "2026-05-13T14:00:44.246Z"
-    },
-    "СУБОТИЦА - ГРАД|6|6": {
-      "opstina_cyr": "СУБОТИЦА - ГРАД",
-      "rb_xlsx": 6,
-      "json_number": 6,
-      "json_id": "7542",
-      "verdict": "xlsx",
-      "decided_at": "2026-05-13T14:10:42.577Z"
-    },
-    "СУБОТИЦА - ГРАД|7|7": {
-      "opstina_cyr": "СУБОТИЦА - ГРАД",
-      "rb_xlsx": 7,
-      "json_number": 7,
-      "json_id": "5518",
-      "verdict": "xlsx",
-      "decided_at": "2026-05-13T14:10:50.689Z"
-    },
-    "АЛЕКСАНДРОВАЦ|13|13": {
-      "opstina_cyr": "АЛЕКСАНДРОВАЦ",
-      "rb_xlsx": 13,
-      "json_number": 13,
-      "json_id": "6252",
-      "verdict": "xlsx",
-      "decided_at": "2026-05-13T16:22:50.484Z"
-    },
-    "АЛЕКСАНДРОВАЦ|17|17": {
-      "opstina_cyr": "АЛЕКСАНДРОВАЦ",
-      "rb_xlsx": 17,
-      "json_number": 17,
-      "json_id": "5840",
-      "verdict": "xlsx",
-      "decided_at": "2026-05-13T16:23:34.025Z"
-    },
-    "АЛЕКСАНДРОВАЦ|19|19": {
-      "opstina_cyr": "АЛЕКСАНДРОВАЦ",
-      "rb_xlsx": 19,
-      "json_number": 19,
-      "json_id": "8369",
-      "verdict": "xlsx",
-      "decided_at": "2026-05-13T16:24:09.564Z"
-    },
-    "АЛЕКСАНДРОВАЦ|30|30": {
-      "opstina_cyr": "АЛЕКСАНДРОВАЦ",
-      "rb_xlsx": 30,
-      "json_number": 30,
-      "json_id": "5183",
-      "verdict": "xlsx",
-      "decided_at": "2026-05-13T16:25:07.442Z"
-    },
-    "АЛЕКСАНДРОВАЦ|32|32": {
-      "opstina_cyr": "АЛЕКСАНДРОВАЦ",
-      "rb_xlsx": 32,
-      "json_number": 32,
-      "json_id": "7928",
-      "verdict": "xlsx",
-      "decided_at": "2026-05-13T16:26:57.698Z"
-    },
-    "АЛЕКСАНДРОВАЦ|33|33": {
-      "opstina_cyr": "АЛЕКСАНДРОВАЦ",
-      "rb_xlsx": 33,
-      "json_number": 33,
-      "json_id": "7466",
-      "verdict": "xlsx",
-      "decided_at": "2026-05-13T16:27:05.147Z"
     }
   },
   "decided_by_count": {
-    "xlsx": 22,
+    "xlsx": 14,
     "json": 0,
     "neither": 0
   }
