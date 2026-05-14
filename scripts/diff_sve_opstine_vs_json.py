@@ -48,6 +48,16 @@ NAME_FUZZ_THRESHOLD = 0.80
 SOURCE_ERROR_FLAG = (5, 0.85)
 STRONG_NAME_MATCH = 0.85
 
+# Combined-score matcher (handles cases where rb shifted between cycles).
+# Score = name_similarity + (RB_MATCH_BOOST if rb matches else 0).
+# A pair is committed only when score >= MIN_PAIR_SCORE, so an rb match
+# alone counts even with low name similarity, AND a strong-name match can
+# beat a same-rb-different-station mismatch (e.g. ТЕХНИЧКА ШКОЛА in
+# Subotica is rb 8 in xlsx but # 6 in JSON — the high name similarity
+# pulls them together even though their rb numbers don't match).
+RB_MATCH_BOOST = 0.50
+MIN_PAIR_SCORE = 0.50
+
 # Opstinas xlsx never started populating (header present but zero data rows)
 # and JSON-only special categories that xlsx is not expected to cover.
 KNOWN_UNCOVERED_BY_XLSX = {
@@ -74,7 +84,7 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 _NN_PREFIX = re.compile(r"^\s*\d+\s*\.\s*")
-_PUNCT = re.compile(r'[„“”"\'’`()\-\–\—]+')
+_PUNCT = re.compile(r'[„“”"\'’`()\-\–\—,.;:]+')
 _WS = re.compile(r"\s+")
 
 
@@ -109,17 +119,32 @@ def fuzz_ratio(a: str, b: str) -> float:
 
 
 def best_match_ratio(xlsx_rec, json_rec) -> float:
-    """Combined name+address similarity, taking the max."""
-    x_name = normalize_for_match(xlsx_rec.get("name_cyr") or "")
-    x_addr = normalize_for_match(xlsx_rec.get("address") or "")
-    _, j_name, j_addr = split_json_name(json_rec["name"])
-    j_name_n = normalize_for_match(j_name or "")
-    j_addr_n = normalize_for_match(j_addr or "")
+    """Combined name+address similarity, taking the max across several
+    comparisons.
+
+    The most reliable comparison is a concat: '<name> <address>' against the
+    entire JSON name string (which itself usually packs '<rb>. <name> - <addr>').
+    That neutralises JSON's habit of cramming the address into the name and
+    handles cross-source punctuation noise.
+    """
+    x_name = xlsx_rec.get("name_cyr") or ""
+    x_addr = xlsx_rec.get("address") or ""
+    j_full = json_rec.get("name") or ""
+    _, j_name, j_addr = split_json_name(j_full)
+    # Normalised pieces
+    xn = normalize_for_match(x_name)
+    xa = normalize_for_match(x_addr)
+    jn = normalize_for_match(j_name or "")
+    ja = normalize_for_match(j_addr or "")
+    # Concat pieces (whole-record comparison)
+    x_concat = normalize_for_match(f"{x_name} {x_addr}")
+    j_concat = normalize_for_match(j_full)
     return max(
-        fuzz_ratio(x_name, j_name_n),
-        fuzz_ratio(x_addr, j_addr_n),
-        fuzz_ratio(x_addr, j_name_n),  # JSON sometimes lumps address into name
-        fuzz_ratio(x_name, j_addr_n),
+        fuzz_ratio(x_concat, j_concat),  # primary: whole-record fuzzy
+        fuzz_ratio(xn, jn),
+        fuzz_ratio(xa, ja),
+        fuzz_ratio(xa, jn),  # JSON sometimes lumps address into name
+        fuzz_ratio(xn, ja),
     )
 
 
@@ -141,32 +166,49 @@ def load_json_sites(path: Path):
 # Pairing
 # ---------------------------------------------------------------------------
 
-def pair_within_opstina(xlsx_records, json_records, remaining_xlsx, remaining_json):
-    """Run fuzzy pass on the unmatched leftovers within one opstina.
+def pair_opstina(xlsx_records, json_records):
+    """Pair every xlsx record with at most one json record (and vice versa)
+    within a single opstina using combined-score greedy matching.
 
-    `remaining_xlsx` and `remaining_json` are lists of indices. We return a
-    list of `(xi, ji, ratio)` greedy pairings (highest ratio first) where
-    ratio ≥ NAME_FUZZ_THRESHOLD; each index used at most once.
+    Returns a list of `(xi, ji, score, name_sim, mode)` tuples where:
+      mode = "rb_and_name"   — rb matched AND name_sim ≥ NAME_FUZZ_THRESHOLD
+             "rb_only"       — rb matched, name_sim < NAME_FUZZ_THRESHOLD
+             "rename"        — rb did NOT match; name_sim alone carried it
+                               (this is the "ТЕХНИЧКА ШКОЛА rb 8 → # 6" case)
+
+    A pair is committed only if its score ≥ MIN_PAIR_SCORE, so rb-only
+    matches still count (rb_boost = 0.5 = threshold) but never overrule a
+    higher-scoring rename candidate.
     """
     candidates = []
-    for xi in remaining_xlsx:
-        xr = xlsx_records[xi]
-        # Skip xlsx records with no identifying text at all
-        if not (xr.get("name_cyr") or xr.get("address")):
+    for xi, xr in enumerate(xlsx_records):
+        # Skip totally empty xlsx rows — let them fall out as xlsx_only.
+        if xr.get("rb") is None and not xr.get("name_cyr") and not xr.get("address"):
             continue
-        for ji in remaining_json:
-            jr = json_records[ji]
-            r = best_match_ratio(xr, jr)
-            if r >= NAME_FUZZ_THRESHOLD:
-                candidates.append((r, xi, ji))
-    candidates.sort(reverse=True)
+        for ji, jr in enumerate(json_records):
+            name_sim = best_match_ratio(xr, jr)
+            rb_match = (
+                xr.get("rb") is not None
+                and jr.get("number") is not None
+                and xr["rb"] == jr["number"]
+            )
+            score = name_sim + (RB_MATCH_BOOST if rb_match else 0.0)
+            if score < MIN_PAIR_SCORE:
+                continue
+            candidates.append((score, name_sim, rb_match, xi, ji))
+
+    candidates.sort(key=lambda t: (-t[0], -t[1]))
     used_x, used_j, pairs = set(), set(), []
-    for r, xi, ji in candidates:
+    for score, name_sim, rb_match, xi, ji in candidates:
         if xi in used_x or ji in used_j:
             continue
         used_x.add(xi)
         used_j.add(ji)
-        pairs.append((xi, ji, r))
+        if rb_match:
+            mode = "rb_and_name" if name_sim >= NAME_FUZZ_THRESHOLD else "rb_only"
+        else:
+            mode = "rename"
+        pairs.append((xi, ji, score, name_sim, mode))
     return pairs
 
 
@@ -224,30 +266,13 @@ def main():
         loc = json_by_loc.get(opst)
         json_recs = loc["polling_stations"] if loc else []
 
-        # Index by rb / number
-        x_by_rb = {}
-        for i, xr in enumerate(xlsx_recs):
-            if xr.get("rb") is not None and xr["rb"] not in x_by_rb:
-                x_by_rb[xr["rb"]] = i
-        j_by_num = {jr["number"]: i for i, jr in enumerate(json_recs)}
-
-        # Seed pairs by matching rb
+        # Combined-score greedy match (handles rb shifts between sources)
+        opst_pairs = pair_opstina(xlsx_recs, json_recs)
         paired_xlsx = set()
         paired_json = set()
         seed_pairs = []
-        for rb, xi in x_by_rb.items():
-            if rb in j_by_num:
-                ji = j_by_num[rb]
-                seed_pairs.append((xi, ji, "seed_rb"))
-                paired_xlsx.add(xi)
-                paired_json.add(ji)
-
-        # Fuzzy fallback for leftovers
-        remaining_x = [i for i in range(len(xlsx_recs)) if i not in paired_xlsx]
-        remaining_j = [i for i in range(len(json_recs)) if i not in paired_json]
-        fuzzy_pairs = pair_within_opstina(xlsx_recs, json_recs, remaining_x, remaining_j)
-        for xi, ji, ratio in fuzzy_pairs:
-            seed_pairs.append((xi, ji, ("seed_fuzzy", ratio)))
+        for xi, ji, score, name_sim, mode in opst_pairs:
+            seed_pairs.append((xi, ji, mode, score, name_sim))
             paired_xlsx.add(xi)
             paired_json.add(ji)
 
@@ -260,9 +285,11 @@ def main():
         n_neither_geo = 0
         n_xlsx_only = 0
         n_json_only = 0
+        n_renames = 0
+        n_rb_only_weak = 0
         conflict_strong_names = 0
 
-        for xi, ji, mode in seed_pairs:
+        for xi, ji, mode_label, score, name_sim in seed_pairs:
             xr = xlsx_recs[xi]
             jr = json_recs[ji]
             x_has = xr.get("lat") is not None
@@ -275,8 +302,6 @@ def main():
                 )
                 n_pairs_with_both_geo += 1
             status = classify_pair(xr, jr, distance)
-            # Name similarity for the report (helpful for conflict review)
-            name_sim = best_match_ratio(xr, jr)
             if status == "confirmed":
                 n_confirmed += 1
             elif status == "coord_conflict":
@@ -290,11 +315,22 @@ def main():
             elif status == "neither_geo":
                 n_neither_geo += 1
 
-            if isinstance(mode, tuple):
-                mode_label, mode_ratio = mode
-                note = f"fuzzy-match ratio={mode_ratio:.2f}"
+            if mode_label == "rename":
+                if xr.get("rb") is not None and jr.get("number") is not None:
+                    note = (
+                        f"rb shifted: xlsx РБ {xr.get('rb')} → json # {jr.get('number')} "
+                        f"(name sim {name_sim:.2f})"
+                    )
+                    n_renames += 1
+                else:
+                    note = (
+                        f"matched by name; xlsx rb missing "
+                        f"(json # {jr.get('number')}, name sim {name_sim:.2f})"
+                    )
+            elif mode_label == "rb_only":
+                note = f"rb match, weak name sim {name_sim:.2f}"
+                n_rb_only_weak += 1
             else:
-                mode_label = mode
                 note = ""
 
             pair_rows.append({
@@ -394,6 +430,8 @@ def main():
             "neither_geo": n_neither_geo,
             "xlsx_only": n_xlsx_only,
             "json_only": n_json_only,
+            "renames": n_renames,
+            "rb_only_weak": n_rb_only_weak,
             "confirmation_rate": round(conf_rate, 3) if conf_rate is not None else None,
             "is_uncovered_by_xlsx": is_uncovered,
             "likely_source_error": likely_source_error,
@@ -493,9 +531,13 @@ def write_markdown(path, summary, by_opstina, pair_rows,
     lines.append("# Accuracy cross-check: `sve_opstine_normalized.json` (2022 xlsx) vs `polling_stations_86.json` (2023)")
     lines.append("")
     lines.append("Two-source confirmation: if both datasets agree on a station's identity and its coordinates "
-                 f"(within {SAME_THRESHOLD_M:.0f} m), that record is treated as trustworthy. Identity match is "
-                 "by `rb`/`number` within an opstina, falling back to fuzzy name+address similarity "
-                 f"≥ {NAME_FUZZ_THRESHOLD:.2f}.")
+                 f"(within {SAME_THRESHOLD_M:.0f} m), that record is treated as trustworthy. Identity match "
+                 "within an opstina is done by combined-score greedy pairing — each candidate pair scores "
+                 f"`name_similarity + ({RB_MATCH_BOOST} if rb matches else 0)` and we pair highest-score first. "
+                 "This lets a strong name match overrule a same-rb-different-station mismatch (e.g. "
+                 "`ТЕХНИЧКА ШКОЛА` in Subotica is РБ 8 in the xlsx but # 6 in the JSON — the matcher pairs "
+                 f"them across rb numbers thanks to a name similarity of ~1.0). Threshold = {MIN_PAIR_SCORE} "
+                 f"(rb alone or name ≥ {MIN_PAIR_SCORE} alone is enough).")
     lines.append("")
     lines.append("## Headline")
     lines.append("")
@@ -533,6 +575,75 @@ def write_markdown(path, summary, by_opstina, pair_rows,
             lines.append(f"| {o} | {s['coord_conflicts']} | {s['confirmed']} | {rate} |")
     else:
         lines.append("_None flagged._")
+    lines.append("")
+
+    # ---- Renames (rb shifted between cycles) ----
+    renames = [
+        r for r in pair_rows
+        if r["status"] in ("confirmed", "coord_conflict", "xlsx_only_geo",
+                           "json_only_geo", "neither_geo")
+        and r.get("note", "").startswith("rb shifted:")
+    ]
+    renames.sort(key=lambda r: (r["opstina_cyr"], r["rb_xlsx"]))
+    # Group by opstina for the per-opstina counts
+    opst_rename_counts = defaultdict(int)
+    for r in renames:
+        opst_rename_counts[r["opstina_cyr"]] += 1
+
+    lines.append(f"## Stations whose `rb` shifted between cycles ({len(renames)} pairs across {len(opst_rename_counts)} opstinas)")
+    lines.append("")
+    lines.append("These pairs were matched across different `rb` / `number` values because the names "
+                 "(and addresses, where helpful) are essentially identical. They represent the same "
+                 "physical station that got renumbered between the 2022 and 2023 elections. The old "
+                 "(seed-by-rb) algorithm would have missed these — putting both in the conflict or "
+                 "unmatched buckets even though they're actually the same station.")
+    lines.append("")
+    lines.append("**Concrete example caught by this pass**: in СУБОТИЦА - ГРАД, "
+                 "`ТЕХНИЧКА ШКОЛА` is at xlsx РБ 8 but json # 6, and the swap counterpart "
+                 "`ОШ \"ИВАН ГОРАН КОВАЧИЋ\"` (Максима Горког 29) is at xlsx РБ 6 but json # 8. "
+                 "Both pairs are now correctly confirmed.")
+    lines.append("")
+    lines.append("Per-opstina rename counts:")
+    lines.append("")
+    lines.append("| Opstina | Renames |")
+    lines.append("|---|---:|")
+    for o, n in sorted(opst_rename_counts.items(), key=lambda kv: -kv[1]):
+        lines.append(f"| {o} | {n} |")
+    lines.append("")
+    lines.append("Full list (grouped by opstina):")
+    lines.append("")
+    lines.append("| Opstina | xlsx РБ → json # | Name sim | Distance | Status | Name |")
+    lines.append("|---|---:|---:|---:|---|---|")
+    for r in renames:
+        d = f"{r['distance_m']:.0f} m" if r['distance_m'] is not None else "—"
+        nm = (r['xlsx_name'] or r['json_name'] or "").replace("|", "\\|")
+        lines.append(
+            f"| {r['opstina_cyr']} | {r['rb_xlsx']} → {r['json_number']} | "
+            f"{r['name_similarity']:.2f} | {d} | {r['status']} | {nm[:80]} |"
+        )
+    lines.append("")
+
+    # ---- rb-only-weak (rb match with low name similarity) ----
+    weaks = [
+        r for r in pair_rows
+        if r.get("note", "").startswith("rb match, weak name sim")
+    ]
+    weaks.sort(key=lambda r: r["name_similarity"])
+    lines.append(f"## `rb` matches with weak name similarity, top {min(30, len(weaks))} (out of {len(weaks)})")
+    lines.append("")
+    lines.append("Pairs that share an `rb` but where the names look quite different. Most are legitimate "
+                 "(abbreviation drift, address-only fields, addenda) but some are evidence of the same `rb` "
+                 "actually pointing at two unrelated stations across the cycles — worth a manual sniff.")
+    lines.append("")
+    lines.append("| Opstina | rb | Name sim | xlsx name | json name |")
+    lines.append("|---|---:|---:|---|---|")
+    for r in weaks[:30]:
+        xnm = (r['xlsx_name'] or "").replace("|", "\\|")
+        jnm = (r['json_name'] or "").replace("|", "\\|")
+        lines.append(
+            f"| {r['opstina_cyr']} | {r['rb_xlsx']} | {r['name_similarity']:.2f} | "
+            f"{xnm[:60]} | {jnm[:60]} |"
+        )
     lines.append("")
 
     # ---- Per-opstina table (worst confirmation rate first) ----
